@@ -38,19 +38,14 @@ class InstructionBlockDescription:
     def has_valid_instructions(self):
         for instr in self.instructions:
             match instr.name:
-                # meta instructions
-                case "mret" | "call" | "ret" | "ecall":
+                case "j", "mret" | "call" | "ret" | "ecall" | "fence":
                     return False
         return True
 
     def is_basic_block(self, is_basic_block=True):
-        idx = 0
-        for instr in self.instructions:
+        for instr in self.instructions[:-1]:
             match instr.name:
-                # branch and jump instructions
-                case "j" | "jal" | "jalr" | "beq" | "bne" | "blt" | "bltu" | "bge" |  "bgeu":
-                    # only last instruct may be a branch
-                    if idx < len(self.instructions) - 1:
-                        return False
-            idx += 1
+                case "j" | "jal" | "jalr" | "beq" | "bne" | "blt" | "bltu" | "bge" | "bgeu":
+                    # only last instruction may be a branch
+                    return False
         return True

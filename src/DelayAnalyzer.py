@@ -14,13 +14,10 @@
 # limitations under the License.
 #
 
-import time
-
-# TODO: remove me, for debugging purpose only
-from objprint import op
-
-from backends.basic_block_analyzer.DelayGraph import DelayGraphModel, DelayGraphVariant, DelayGraph, SymbolicVariable
 from meta_models.structural_model.StructuralModel import StructuralModel, Variant
+
+from src.Common import Profile
+from src.DelayGraph import DelayGraphModel, DelayGraphVariant, DelayGraph, SymbolicVariable
 
 class DelayAnalyzer:
 
@@ -49,6 +46,7 @@ class DelayAnalyzer:
         """
         Replaces all dynamic delay with a zero delay -> dynamic delays have no effect and ignored.
         """
+        # TODO: properly integrate dynamic delays (cannot be treated as input variables)
         if self.verbose:
             print(f" > assuming no dynamic delays")
         for variant in self.delay_graph_model.variants:
@@ -133,36 +131,32 @@ class DelayAnalyzer:
 
             for function_name in delay_graph_variant.scheduling_functions:
                 print(f"  > Resolving delay graph of '{function_name}'")
-                start = time.perf_counter_ns()
+                with Profile(f"  > took"):
+                    delay_graph = delay_graph_variant.scheduling_functions[function_name]
 
-                delay_graph = delay_graph_variant.scheduling_functions[function_name]
+                    num_instructions = sum([int("Enter" in node) for node in delay_graph.nodes()])
+                    estimations = []
 
-                num_instructions = sum([int("Enter" in node) for node in delay_graph.nodes()])
-                estimations = []
+                    for output_name in delay_graph.outputs():
+                        output = delay_graph.get_output(output_name)
+                        output = output.expanded(delay_graph.intermediates())
+                        before = output
+                        for i in range(0, len(mappings)):
+                            for mapping in mappings:
+                                output = output.replaced(mapping, mappings[mapping])
+                        output = output.resolved(self._zero.name)
+                        output = output.replaced(self.target_variable.name, initial_value)
+                        if self.verbose:
+                            print(f"   > Resolved {output_name.ljust(10)} :  {before}\t \n" + \
+                                f"              {"".ljust(10)} => {output}")
+                        if estimate_cpi and output_name in relationships:
+                            relation = relationships[output_name]
+                            estimations.append(SymbolicVariable(output_name, output.max_value(relation.name)))
 
-                for output_name in delay_graph.outputs():
-                    output = delay_graph.get_output(output_name)
-                    output = output.expanded(delay_graph.intermediates())
-                    before = output
-                    for i in range(0, len(mappings)):
-                        for mapping in mappings:
-                            output = output.replaced(mapping, mappings[mapping])
-                    output = output.resolved(self._zero.name)
-                    output = output.replaced(self.target_variable.name, initial_value)
-                    if self.verbose:
-                        print(f"   > Resolved {output_name.ljust(10)} :  {before}\t \n" + \
-                              f"              {"".ljust(10)} => {output}")
-                    if estimate_cpi and output_name in relationships:
-                        relation = relationships[output_name]
-                        estimations.append(SymbolicVariable(output_name, output.max_value(relation.name)))
-
-                if estimations:
-                    estimations.sort(key=lambda e: list(relationships.keys()).index(e.name))
-                    print(f"   > max({", ".join([f"{e}" for e in estimations])})")
-                    # choose the variable with biggest change in its delay
-                    max_val = max(estimations, key=lambda v: (v.delay - relationships[v.name].delay))
-                    max_val.delay -= initial_value.delay
-                    print(f"core={variant_name} \tbb={function_name} \tCPI = {f"{max_val.delay}/{num_instructions}":<10} = {(max_val.delay / num_instructions):.3f} \t({max_val.name})")
-
-                end = time.perf_counter_ns()
-                print(f"  > took {(end - start) / 1_000_000}ms!")
+                    if estimations:
+                        estimations.sort(key=lambda e: list(relationships.keys()).index(e.name))
+                        print(f"   > max({", ".join([f"{e}" for e in estimations])})")
+                        # choose the variable with biggest change in its delay
+                        max_val = max(estimations, key=lambda v: (v.delay - relationships[v.name].delay))
+                        max_val.delay -= initial_value.delay
+                        print(f"core={variant_name} \tbb={function_name} \tCPI = {f"{max_val.delay}/{num_instructions}":<10} = {(max_val.delay / num_instructions):.3f} \t({max_val.name})")

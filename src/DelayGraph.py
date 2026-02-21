@@ -14,16 +14,14 @@
 # limitations under the License.
 #
 
-# TODO: remove me, for debugging purpose only
-from objprint import op
-
-import time
 import copy
 
 from typing import List, Dict, Optional, TypeAlias
 from collections import deque
 
 from meta_models.scheduling_model.SchedulingModel import SchedulingModel, Variant, SchedulingFunction, Node, Edge
+
+from src.Common import Profile
 
 class SymbolicVariable:
     """Represents a variable in a max term, associated with an added delay."""
@@ -337,7 +335,8 @@ class DelayGraphTransformer:
         Setting `unroll_delays` to `True` will yield a delay graph with a depth of one, i.e. no max terms are shared.
         """
         print()
-        print("-- BACKENDS: DELAY_GRAPH --")
+        print("-- TRANSFORM: DELAY_GRAPH_MODEL --")
+
         self.simplify = simplify
         model = DelayGraphModel()
         # iterate over each variant
@@ -351,10 +350,8 @@ class DelayGraphTransformer:
         variant = DelayGraphVariant()
         for block_function in block_functions:
             print(f"  > Generating delay graph for '{block_function.name}'")
-            start = time.perf_counter_ns()
-            variant.scheduling_functions[block_function.name] = self.__generateDelayGraphForFunction(block_variant, block_function)
-            end   = time.perf_counter_ns()
-            print(f"  > took {(end - start) / 1_000_000}ms!")
+            with Profile(f"  > took"):
+                variant.scheduling_functions[block_function.name] = self.__generateDelayGraphForFunction(block_variant, block_function)
         return variant
 
     def __generateDelayGraphForFunction(self, block_variant:Variant, block_function:SchedulingFunction):
@@ -418,6 +415,7 @@ class DelayGraphTransformer:
                 term.append(variable.merged(node.delay))
         # append variable delay of resource model
         if node.resourceModel:
+            # TODO: properly integrate dynamic delays (cannot be treated as input variables)
             # use name of node as unique resource delay
             variable = self.__simplify_variable_name(node.name)
             graph.register_dynamic_variable(node.name, variable)

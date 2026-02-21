@@ -15,15 +15,14 @@
 #
 
 import copy
-import time
-
-from src.Common import dotdict
-from src.InstructionBlockDescription import InstructionBlockDescription
-
 from collections import deque
 from typing import List, Dict
 
 from meta_models.scheduling_model.SchedulingModel import SchedulingModel, Variant, SchedulingFunction, Node, StaticEdge
+
+from src.Common import dotdict, Profile
+from src.InstructionBlockDescription import InstructionBlockDescription
+
 
 class BlockSchedulingTransformer:
     """Block Scheduling Transformer"""
@@ -49,7 +48,7 @@ class BlockSchedulingTransformer:
         The model is a regular Scheduling Model which only contains a scheduling function for each BB.
         """
         print()
-        print("-- TRANSMFORMER: BLOCK_SCHEDULING_MODEL --")
+        print("-- TRANSFORM: BLOCK_SCHEDULING_MODEL --")
 
         blockSchedulingModel = SchedulingModel()
 
@@ -66,11 +65,8 @@ class BlockSchedulingTransformer:
             # iterate over each BB
             for block_desc in block_descriptions:
                 assert block_desc.has_valid_instructions()
-                
-                start = time.perf_counter_ns()
-                self.__generateBlockSchedulingFunction(sched_variant, block_variant, block_desc)
-                end = time.perf_counter_ns()
-                print(f"  > took {(end - start) / 1_000_000}ms!")
+                with Profile(f"  > took"):
+                    self.__generateBlockSchedulingFunction(sched_variant, block_variant, block_desc)
 
         return blockSchedulingModel
 
@@ -243,7 +239,7 @@ class BlockSchedulingTransformer:
                 else:
                     last_valid_node = last_node
                 edge = last_node.createStaticOutEdge(timing_variable)
-                # TODO: we need to properly support depth > 1 for outgoing edges
+                # TODO: we need to properly support depth > 1 for outgoing edges in M2-ISA-R-Perf
                 edge.depth = idx + 1
 
     def __resolveRegisterInEdge(self, block_node:Node, edge:StaticEdge, block_desc:InstructionBlockDescription, block_idx:int, mappings, model:str):

@@ -14,15 +14,13 @@
 # limitations under the License.
 #
 
-# TODO: remove me, for debugging purpose only
-from objprint import op
-
 import graphviz
 import pathlib
 import os
 
 from backends.common import dirUtils as dir_utils
-from backends.basic_block_analyzer.DelayGraph import DelayGraphModel
+
+from src.DelayGraph import DelayGraphModel
 
 class DelayGraphViewer:
 
