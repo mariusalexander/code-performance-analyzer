@@ -22,6 +22,7 @@ from collections import deque
 from meta_models.scheduling_model.SchedulingModel import SchedulingModel, Variant, SchedulingFunction, Node, Edge
 
 from src.Common import Profile
+from src.InstructionBlockDescription import InstructionBlockDescription
 
 class SymbolicVariable:
     """Represents a variable in a max term, associated with an added delay."""
@@ -219,7 +220,8 @@ class DelayGraphVariant:
 
 class DelayGraph:
 
-    def __init__(self):
+    def __init__(self, code_block:InstructionBlockDescription):
+        self.code_block = code_block
         # intermediate results, that can be reused by other nodes
         self._intermediates:Dict[str, 'MaxTerm'] = {}
         # outputs of the scheduling function (timing variables and connector models)
@@ -328,7 +330,7 @@ class DelayGraphTransformer:
         self.simplify = True
         self.verbose  = verbose
 
-    def transform(self, block_model:SchedulingModel, simplify=True) -> 'DelayGraphModel':
+    def transform(self, block_model:SchedulingModel, block_descriptions:List[InstructionBlockDescription], simplify=True) -> 'DelayGraphModel':
         """
         Transforms a (block) scheduling model into a delay graph.
         For each scheduling function a dict of its outputs and the respective delay functions (max term) is returned.
@@ -342,20 +344,22 @@ class DelayGraphTransformer:
         # iterate over each variant
         for block_variant in block_model.getAllVariants():
             print(f" > Generating delay graph for '{block_variant.name}'")
-            model.variants[block_variant.name] = self.__generateDelayGraphForEachFunction(block_variant)
+            model.variants[block_variant.name] = self.__generateDelayGraphForEachFunction(block_variant, block_descriptions)
         return model
 
-    def __generateDelayGraphForEachFunction(self, block_variant:Variant) -> 'DelayGraphVariant':
+    def __generateDelayGraphForEachFunction(self, block_variant:Variant, block_descriptions:List[InstructionBlockDescription]) -> 'DelayGraphVariant':
         block_functions = block_variant.getAllSchedulingFunctions()
         variant = DelayGraphVariant()
+        idx = 0
         for block_function in block_functions:
             print(f"  > Generating delay graph for '{block_function.name}'")
             with Profile(f"  > took"):
-                variant.scheduling_functions[block_function.name] = self.__generateDelayGraphForFunction(block_variant, block_function)
+                variant.scheduling_functions[block_function.name] = self.__generateDelayGraphForFunction(block_variant, block_function, block_descriptions[idx])
+            idx += 1
         return variant
 
-    def __generateDelayGraphForFunction(self, block_variant:Variant, block_function:SchedulingFunction):
-        graph = DelayGraph()
+    def __generateDelayGraphForFunction(self, block_variant:Variant, block_function:SchedulingFunction, block_description:InstructionBlockDescription):
+        graph = DelayGraph(code_block=block_description)
 
         # find all root nodes
         queue = deque([n for n in block_function.getAllNodes() if len(n.getAllInNodes()) == 0])

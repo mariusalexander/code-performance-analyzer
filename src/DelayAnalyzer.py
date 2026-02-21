@@ -155,8 +155,9 @@ class DelayAnalyzer:
 
                     if estimations:
                         estimations.sort(key=lambda e: list(relationships.keys()).index(e.name))
-                        print(f"   > max({", ".join([f"{e}" for e in estimations])})")
                         # choose the variable with biggest change in its delay
                         max_val = max(estimations, key=lambda v: (v.delay - relationships[v.name].delay))
                         max_val.delay -= initial_value.delay
                         print(f"core={variant_name} \tbb={function_name} \tCPI = {f"{max_val.delay}/{num_instructions}":<10} = {(max_val.delay / num_instructions):.3f} \t({max_val.name})")
+                        print(f"   > max({", ".join([f"{e}" for e in estimations])})")
+                        print(delay_graph.code_block)

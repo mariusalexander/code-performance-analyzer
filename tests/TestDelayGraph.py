@@ -102,9 +102,9 @@ def generate_models(sched_model, pattern=None, verbose=False, simplify=False):
         code_blocks = [block for block in code_blocks if fnmatch.fnmatch(block.name, pattern)]
 
     block_schedule = BlockSchedulingTransformer(verbose=verbose).transform(sched_model, code_blocks)
-    delay_model    = DelayGraphTransformer(verbose=verbose).transform(block_schedule, simplify=simplify)
+    delay_model    = DelayGraphTransformer(verbose=verbose).transform(block_schedule, code_blocks, simplify=simplify)
     with PrintDisabled():
-        delay_model_other = DelayGraphTransformer(verbose=False).transform(block_schedule, simplify=not simplify)
+        delay_model_other = DelayGraphTransformer(verbose=False).transform(block_schedule, code_blocks, simplify=not simplify)
 
     # both the simplified and non simplified models should be equal in their prediction
     assert_equal(base_model =delay_model       if not simplify else delay_model_other, \
