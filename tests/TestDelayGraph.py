@@ -42,7 +42,7 @@ def assert_equal(base_model, other_model):
                 other_output = otherGraph.get_output(output_name).expanded(otherGraph.intermediates())
                 assert base_output == other_output, f"Mistmatch:\n> {output_name} \t {base_output}\t\n > {" " * (len(output_name) + 1)}\t {oother_output}"
 
-def test_vectors():
+def test_vectors(pattern=None):
     r = RISCVAbiRegisters()
 
     code_blocks      = []
@@ -94,12 +94,13 @@ def test_vectors():
     assert all([block.is_basic_block() for block in code_blocks])
     assert all([block.has_valid_instructions() for block in code_blocks])
 
+    if pattern is not None:
+        code_blocks = [block for block in code_blocks if fnmatch.fnmatch(block.name, pattern)]
+
     return code_blocks
 
 def generate_models(sched_model, pattern=None, verbose=False, simplify=False):
-    code_blocks = test_vectors()
-    if pattern is not None:
-        code_blocks = [block for block in code_blocks if fnmatch.fnmatch(block.name, pattern)]
+    code_blocks = test_vectors(pattern)
 
     block_schedule = BlockSchedulingTransformer(verbose=verbose).transform(sched_model, code_blocks)
     delay_model    = DelayGraphTransformer(verbose=verbose).transform(block_schedule, code_blocks, simplify=simplify)

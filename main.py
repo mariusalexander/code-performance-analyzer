@@ -3,6 +3,7 @@ import pathlib
 import argparse
 import fnmatch
 import pickle
+import networkx as nx
 from objprint import op
 
 from backends.schedule_viewer.SchedulingModelViewer import SchedulingModelViewer
@@ -10,6 +11,7 @@ from backends.schedule_viewer.SchedulingModelViewer import SchedulingModelViewer
 from src.Common import Profile
 from src.InstructionBlockDescription import InstructionBlockDescription
 from src.BlockSchedulingTransformer import BlockSchedulingTransformer
+from src.DelayNxGraph import DelayNxGraphTransformer
 from src.DelayGraph import DelayGraphTransformer
 from src.DelayGraphViewer import DelayGraphViewer
 from src.DelayAnalyzer import DelayAnalyzer
@@ -42,6 +44,7 @@ def main():
     args_parser.add_argument("--cores"            , type=str, help="Filters out any core variants that do not match the given Wildcard pattern")
     args_parser.add_argument("-v", "--verbose"    , action="store_true", help="Enables verbose output.")
     args_parser.add_argument("--simplify"         , action="store_true", help="Whether to simplify the generated delay graphs.")
+    args_parser.add_argument("--nx"               , action="store_true", help="Whether to use networkx graphs (WIP).")
     # inputs
     args_parser.add_argument("--tests"            , nargs='?', type=str, const='*', help="Loads test vectors. A Wildcard pattern can be used to load only certain tests.")
     # targets
@@ -98,8 +101,23 @@ def main():
 
     # generate block and delay models
     block_schedule = delay_model = None
+
     # TODO: allow loading one or multiple basic blocks from file or stdin
     if args.tests:
+        if args.nx:
+            descs = Tests.test_vectors(pattern=args.tests)
+            block_schedule = BlockSchedulingTransformer(args.verbose).transform(sched_model, descs)
+            delay_model    = DelayNxGraphTransformer(args.verbose).transform(block_schedule, descs)
+            with Profile("calculating nx graph longest path:"):
+                for variant_name in delay_model.variants:
+                    variant = delay_model.variants[variant_name]
+                    for function_name in variant.scheduling_functions:
+                        graph = variant.scheduling_functions[function_name]
+                        with Profile("calculating longest path"):
+                            #print(nx.dag_longest_path(graph.G))
+                            print(nx.dag_longest_path_length(graph.G))
+            #exit(0)
+            
         block_schedule, delay_model = Tests.generate_models(sched_model, pattern=args.tests, verbose=args.verbose, simplify=args.simplify)
 
     if block_schedule is None or delay_model is None:
