@@ -8,6 +8,62 @@ from meta_models.scheduling_model.SchedulingModel import SchedulingModel, Varian
 from src.Common import Profile
 from src.InstructionBlockDescription import InstructionBlockDescription
 
+class NxVariable:
+
+    def __init__(self, name:str, delay:int=0):
+        self.name  = name
+        self.delay = delay
+
+    def __str__(self):
+        return f"{self.delay} + {self.name}"
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __add__(self, other):
+        if isinstance(other, int):
+            return NxVariable(self.name, self.delay + other)
+        if self.name == other.name:
+            return NxVariable(self.name, self.delay + other.delay)
+        raise RuntimeError(f"UNHANDELED_ADD ({self} vs {other})")
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __lt__(self, other):
+        if isinstance(other, int):
+            if other <= 0 or self.delay > other:
+                return False
+            raise RuntimeError(f"UNSURE_LT ({self} vs {other})")
+        if self.name == other.name:
+            return self.delay < other.delay
+        raise RuntimeError(f"UNHANDELED_LT ({self} vs {other})")
+
+    def __gt__(self, other):
+        if isinstance(other, int):
+            if other <= 0 or self.delay > other:
+                return True
+            raise RuntimeError(f"UNSURE_GT ({self} vs {other})")
+        if self.name == other.name:
+            return self.delay > other.delay
+        raise RuntimeError(f"UNHANDELED_GT ({self} vs {other})")
+
+    def __eq__(self, other):
+        if isinstance(other, int):
+            raise False
+        if self.name == other.name:
+            return self.delay == other.delay
+        raise RuntimeError(f"UNHANDELED_EQ ({self} vs {other})")
+
+    def __ge__(self, other):
+        if isinstance(other, int):
+            if other <= 0 or self.delay > other:
+                return True
+            raise RuntimeError(f"UNSURE_GE ({self} vs {other})")
+        if self.name >= other.name:
+            return self.delay >= other.delay
+        raise RuntimeError(f"UNHANDELED_GE ({self} vs {other})")
+
 class DelayNxGraphModel:
 
     def __init__(self):
@@ -100,11 +156,16 @@ class DelayNxGraphTransformer:
             variable  = self.__simplify_variable_name(edge_name)
             if variable == 'r0':
                 continue
-            graph.G.add_edge(edge_name, node.name, weight=node.delay)
+            graph.G.add_edge(edge_name, node.name, weight=0)
             graph.inputs.append(edge_name)
         # append in node to function
         for in_node in node.getAllInNodes():
-            graph.G.add_edge(in_node.name, node.name, weight=in_node.delay)
+            if "MUL_" in in_node.name:
+                var_name = self.__simplify_variable_name(in_node.name)
+                print("CREATING VARIABLE", var_name, "INTO NODE", in_node.name)
+                graph.G.add_edge(in_node.name, node.name, weight=NxVariable(var_name, in_node.delay))
+            else: 
+                graph.G.add_edge(in_node.name, node.name, weight=in_node.delay)
         # append variable delay of resource model
         if node.resourceModel:
             # TODO: properly integrate dynamic delays (cannot be treated as input variables)

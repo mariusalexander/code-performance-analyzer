@@ -1,12 +1,10 @@
 #!/usr/bin/python3
 
-import sys
 import pathlib
 import argparse
 import fnmatch
 import pickle
 import networkx as nx
-from objprint import op
 
 from backends.schedule_viewer.SchedulingModelViewer import SchedulingModelViewer
 
