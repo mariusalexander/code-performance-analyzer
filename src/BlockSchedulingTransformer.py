@@ -145,7 +145,7 @@ class BlockSchedulingTransformer:
                     queue.append(next_node_i)
 
         # make sure all nodes are processed
-        assert all([ self.__findNode(block_function, block_idx, n) for n in sched_function.getAllNodes() ])
+        assert all(self.__findNode(block_function, block_idx, n) for n in sched_function.getAllNodes())
 
         # setup root node respectively
         if not block_function.getRootNode():

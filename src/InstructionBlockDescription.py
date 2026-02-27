@@ -26,7 +26,7 @@ class InstructionDescription(dotdict):
 
     def registers_to_str(self):
         string = ""
-        for entry in ["rd", "rs1", "rs2", "imm"]:
+        for entry in ("rd", "rs1", "rs2", "imm"):
             string += f"{entry:>3}={self[entry]:>2}, " if self[entry] else " "*(max(3, len(entry)) + 5)
         if len(string) > 0:
             idx = string.rindex(", ")
@@ -49,7 +49,7 @@ class InstructionBlockDescription:
 
     def __str__(self) -> str:
         return f"code block '{self.name}' ({hex(self.starting_address)}), {len(self.instructions)} instructions:\n " + \
-                "\n ".join([f"{" " * Print.indent}{(instr.address - self.starting_address) // 4:>3}. {instr}" for instr in self.instructions])
+                "\n ".join(f"{" " * Print.indent}{(instr.address - self.starting_address) // 4:>3}. {instr}" for instr in self.instructions)
 
     def __repr__(self) -> str:
         return self.__str__()

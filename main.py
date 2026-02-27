@@ -28,7 +28,7 @@ def main():
         model.variants = [var for var in model.variants if fnmatch.fnmatch(var.name, pattern)]
         if not verbose:
             return
-        for var in [var for var in variants if var not in model.variants]:
+        for var in (var for var in variants if var not in model.variants):
             print(f"  > WARNING: filtered out variant '{var.name}'")
         for var in model.variants:
             print(f"  > using variant '{var.name}'")

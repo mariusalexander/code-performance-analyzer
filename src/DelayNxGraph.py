@@ -66,7 +66,7 @@ class DelayNxGraphTransformer:
         graph = DelayNxGraph(code_block=block_description)
 
         # find all root nodes
-        queue = deque([n for n in block_function.getAllNodes() if len(n.getAllInNodes()) == 0])
+        queue = deque(n for n in block_function.getAllNodes() if len(n.getAllInNodes()) == 0)
         while queue:
             node = queue.popleft()
             #assert node.name not in graph.nodes()
@@ -85,7 +85,7 @@ class DelayNxGraphTransformer:
                     queue.append(next_node_i)
 
         # make sure all nodes have been processed
-        assert all([ n.name in graph.G.nodes() for n in block_function.getAllNodes() ])
+        assert all((n.name in graph.G.nodes()) for n in block_function.getAllNodes())
 
         return graph
 

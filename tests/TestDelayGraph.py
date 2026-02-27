@@ -91,8 +91,8 @@ def test_vectors(pattern=None):
     desc.addInstruction("add" , rd=4, rs1= 1, rs2=11)
     code_blocks.append(desc)
 
-    assert all([block.is_basic_block() for block in code_blocks])
-    assert all([block.has_valid_instructions() for block in code_blocks])
+    assert all(block.is_basic_block() for block in code_blocks)
+    assert all(block.has_valid_instructions() for block in code_blocks)
 
     if pattern is not None:
         code_blocks = [block for block in code_blocks if fnmatch.fnmatch(block.name, pattern)]

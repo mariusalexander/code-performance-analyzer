@@ -16,6 +16,7 @@
 
 import copy
 
+from itertools import chain
 from typing import List, Dict, Optional, TypeAlias
 from collections import deque
 
@@ -47,7 +48,7 @@ class MaxTerm(list):
         super().__init__(iterable if iterable is not None else [])
 
     def __str__(self) -> str:
-        return f"({", ".join([str(v) for v in self])})"
+        return f"({", ".join(str(v) for v in self)})"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -56,7 +57,7 @@ class MaxTerm(list):
         return super().__add__(value)
 
     def __eq__(self, other):
-        return len(self) == len(other) and all([v.name in other and other.max_value(v.name) == v.delay for v in self])
+        return len(self) == len(other) and all((v.name in other and other.max_value(v.name) == v.delay) for v in self)
 
     def __contains__(self, value:str|SymbolicVariable) -> bool:
         if isinstance(value, str):
@@ -69,19 +70,22 @@ class MaxTerm(list):
         """
         Returns the maximum added delay of the variable `name`.
         """
-        tmp = [v.delay for v in self if v.name == name]
-        return max(tmp) if len(tmp) else None
+        tmp = (v.delay for v in self if v.name == name)
+        try:
+            return max(tmp)
+        except ValueError:
+            return None
 
     def names(self) -> List[str]:
         """
         Returns a list of all variable names as they appear in order.
         """
-        return list(dict.fromkeys([v.name for v in self])) # keeps order but removes duplicates
+        return list(dict.fromkeys(v.name for v in self)) # keeps order but removes duplicates
 
     def plus(self, value:int) -> 'MaxTerm':
         if value < 0:
             raise ValueError("Only positive values are allowed")
-        return MaxTerm([v.merged(value) for v in self]).simplified()
+        return MaxTerm(v.merged(value) for v in self).simplified()
 
     def resolved(self, variable_name:str) -> 'MaxTerm':
         """
@@ -90,7 +94,7 @@ class MaxTerm(list):
         value    = self.max_value(variable_name)
         if value is None:
             value = 0
-        new_term = MaxTerm([SymbolicVariable(v.name, max(v.delay, value)) for v in self if v.name != variable_name])
+        new_term = MaxTerm(SymbolicVariable(v.name, max(v.delay, value)) for v in self if v.name != variable_name)
         return new_term
 
     def remove(self, variable_name:str) -> 'MaxTerm':
@@ -112,8 +116,8 @@ class MaxTerm(list):
         Expands (unrolls) all intermediate variables by their corresponding variables.
         Returns a new, simplified term.
         """
-        expanded = MaxTerm([i.merged(v.delay) for v in self if v.name in intermediates for i in intermediates[v.name]] + \
-                           [v                 for v in self if v.name not in intermediates])
+        expanded = MaxTerm(chain((i.merged(v.delay) for v in self if v.name in intermediates for i in intermediates[v.name]), \
+                                 (v                 for v in self if v.name not in intermediates)))
         assert all([i.name not in intermediates for i in expanded])
         return expanded.simplified()
 
@@ -129,7 +133,7 @@ class MaxTerm(list):
         Minimizes the list of variables. Each variable is listed exactly once.
         Keeps order of names. Returns a new term.
         """
-        return MaxTerm([SymbolicVariable(name, self.max_value(name)) for name in self.names()])
+        return MaxTerm(SymbolicVariable(name, self.max_value(name)) for name in self.names())
 
     def repacked(self, intermediates:Dict[str, 'MaxTerm']) -> 'MaxTerm':
         """
@@ -362,7 +366,7 @@ class DelayGraphTransformer:
         graph = DelayGraph(code_block=block_description)
 
         # find all root nodes
-        queue = deque([n for n in block_function.getAllNodes() if len(n.getAllInNodes()) == 0])
+        queue = deque(n for n in block_function.getAllNodes() if len(n.getAllInNodes()) == 0)
         while queue:
             node = queue.popleft()
             assert node.name not in graph.nodes()
@@ -390,7 +394,7 @@ class DelayGraphTransformer:
                     queue.append(next_node_i)
 
         # make sure all nodes have been processed
-        assert all([ n.name in graph.nodes() for n in block_function.getAllNodes() ])
+        assert all((n.name in graph.nodes()) for n in block_function.getAllNodes())
 
         if self.verbose:
             print(f"   > outputs:")
@@ -467,7 +471,7 @@ class DelayGraphTransformer:
                 if self.verbose:
                     print(f"INFO: intermediate '{best_match.name}' is a negative multiple of '{intermediate}'! (distance: {best_match.delay})")
                 assert len(other_term) == len(expanded)
-                new_term = MaxTerm([SymbolicVariable(intermediate, 0)])
+                new_term = MaxTerm((SymbolicVariable(intermediate, 0),))
                 # update old output
                 graph.set_output(best_match.name, new_term.plus(-best_match.delay))
                 graph.register_intermediate(intermediate, expanded)
