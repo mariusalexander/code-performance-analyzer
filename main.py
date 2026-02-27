@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import sys
 import pathlib
 import argparse
@@ -8,7 +10,7 @@ from objprint import op
 
 from backends.schedule_viewer.SchedulingModelViewer import SchedulingModelViewer
 
-from src.Common import Profile
+from src.Common import Profile, Print
 from src.InstructionBlockDescription import InstructionBlockDescription
 from src.BlockSchedulingTransformer import BlockSchedulingTransformer
 from src.DelayNxGraph import DelayNxGraphTransformer
@@ -32,7 +34,7 @@ def main():
             print(f"  > using variant '{var.name}'")
     
     # path to folder
-    dirname = pathlib.Path(__file__).resolve().parents[0] / "out"
+    dirname = pathlib.Path(__file__).resolve().parent / "out"
 
     ### parse arguments
     args_parser = argparse.ArgumentParser()
@@ -46,7 +48,8 @@ def main():
     args_parser.add_argument("--simplify"         , action="store_true", help="Whether to simplify the generated delay graphs.")
     args_parser.add_argument("--nx"               , action="store_true", help="Whether to use networkx graphs (WIP).")
     # inputs
-    args_parser.add_argument("--tests"            , nargs='?', type=str, const='*', help="Loads test vectors. A Wildcard pattern can be used to load only certain tests.")
+    args_parser.add_argument("--tests"            , nargs='?', type=str, const='*',  help="Loads test vectors. A Wildcard pattern can be used to load only certain tests.")
+    args_parser.add_argument("--files"            , nargs='+', type=lambda o: pathlib.Path(o).resolve(), const=None, help="...")
     # targets
     args_parser.add_argument("--schedule-graph"   , action="store_true", help="Generates schedule graphs for the generated instruction block schedules (writes to `out-dir`, uses M2-ISA-R-Perf internally)")
     args_parser.add_argument("--delay-graph"      , action="store_true", help="Generates delay graphs for the selected instruction blocks (writes to `out-dir`).")
@@ -58,7 +61,8 @@ def main():
 
     ### initializations ###
     print("-- INITIALIZING --")
-    sched_model = struct_model = None
+    print(args)
+    schedule_model = struct_model = None
 
     model_path = pathlib.Path(args.schedule_model).resolve()
     if model_path.is_dir():
@@ -76,7 +80,7 @@ def main():
     with open(args.schedule_model, 'rb') as file:
         print(" > loading schedule model...")
         with Profile("  > unpickling schedule model"):
-            sched_model = pickle.load(file)
+            schedule_model = pickle.load(file)
 
     if args.struct_model:
         with open(args.struct_model, 'rb') as file:
@@ -89,11 +93,11 @@ def main():
     # filter out variants
     if args.cores:
         print(" > filtering variants...")
-        filter_variants(sched_model, args.cores)
+        filter_variants(schedule_model, args.cores)
         if struct_model is not None:
             filter_variants(struct_model, args.cores, verbose=False)
 
-    if len(sched_model.variants) == 0:
+    if len(schedule_model.variants) == 0:
         print(" > ERROR: No variants available!")
         exit(1)
 
@@ -101,30 +105,51 @@ def main():
 
     # generate block and delay models
     block_schedule = delay_model = None
+    
+    if args.files:
+        if args.tests:
+            args_parser.error(f"Conflicting arguments! (--files vs --tests)")
+        
+        print(" > loading from files...")
+        descs = []
+        for file in args.files:
+            print(f"  > loading from file '{file.name}'...")
+            Print.indent = 3
+            assert file.exists()
+            try:
+                address_start = int(file.stem, 16)
+            except ValueError:
+                address_start = 0
+            with open(file) as f:
+                raw_instructions = f.readlines()
+                desc = InstructionBlockDescription.parse_stringlist(raw_instructions, name=file.stem, address_start=address_start)
+                print("   >", desc)
+                descs.append(desc)
 
-    # TODO: allow loading one or multiple basic blocks from file or stdin
-    if args.tests:
+        block_schedule = BlockSchedulingTransformer(args.verbose).transform(schedule_model, descs)
+        delay_model    = DelayGraphTransformer(args.verbose).transform(block_schedule, descs)
+
+    elif args.tests:
+        block_schedule, delay_model = Tests.generate_models(schedule_model, pattern=args.tests, verbose=args.verbose, simplify=args.simplify)
+
         if args.nx:
             descs = Tests.test_vectors(pattern=args.tests)
-            block_schedule = BlockSchedulingTransformer(args.verbose).transform(sched_model, descs)
-            delay_model    = DelayNxGraphTransformer(args.verbose).transform(block_schedule, descs)
-            with Profile("calculating nx graph longest path:"):
-                for variant_name in delay_model.variants:
-                    variant = delay_model.variants[variant_name]
-                    for function_name in variant.scheduling_functions:
-                        graph = variant.scheduling_functions[function_name]
-                        with Profile("calculating longest path"):
-                            #print(nx.dag_longest_path(graph.G))
-                            print(nx.dag_longest_path_length(graph.G))
-            #exit(0)
-            
-        block_schedule, delay_model = Tests.generate_models(sched_model, pattern=args.tests, verbose=args.verbose, simplify=args.simplify)
-
+            nx_delay_model  = DelayNxGraphTransformer(args.verbose).transform(block_schedule, descs)
+            for variant_name in nx_delay_model.variants:
+                variant = nx_delay_model.variants[variant_name]
+                for function_name in variant.scheduling_functions:
+                    graph = variant.scheduling_functions[function_name]
+                    with Profile(" > calculating longest path"):
+                        longest_path = nx.dag_longest_path(graph.G)
+                        longest_path_length = nx.dag_longest_path_length(graph.G)
+                    print(f"  > path (length: {longest_path_length}, nodes: {len(longest_path)}):")
+                    print( "   ->", "\n   -> ".join(" -> ".join(longest_path[i:i+5]) for i in range(0, len(longest_path), 5)))
+    
     if block_schedule is None or delay_model is None:
         print(" > ERROR: No block schedule was generated!")
         exit(1)
 
-    ### backends ###
+    ### Backends ###
 
     # visualizations
     if args.schedule_graph:

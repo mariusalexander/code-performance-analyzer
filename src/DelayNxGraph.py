@@ -42,7 +42,7 @@ class DelayNxGraphTransformer:
         Setting `unroll_delays` to `True` will yield a delay graph with a depth of one, i.e. no max terms are shared.
         """
         print()
-        print("-- TRANSFORM: DELAY_GRAPH_MODEL --")
+        print("-- TRANSFORM: DELAY_NX_GRAPH_MODEL --")
 
         model = DelayNxGraphModel()
         # iterate over each variant

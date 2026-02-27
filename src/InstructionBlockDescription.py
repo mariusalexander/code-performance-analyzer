@@ -1,10 +1,14 @@
-from src.Common import dotdict
+import re
+from typing import List
 
+from src.Common import dotdict, Print
+
+_ignored_registers_ = set()
 
 class InstructionDescription(dotdict):
     """ Denotes a single instruction. """
 
-    def __init__(self, address, instr_name, rd=None, rs1=None, rs2=None, imm=None):
+    def __init__(self, address:int, instr_name:str, rd:int=None, rs1:int=None, rs2:int=None, imm:int=None):
         super().__init__()
         self.address = address
         self.name    = instr_name
@@ -23,14 +27,14 @@ class InstructionDescription(dotdict):
     def registers_to_str(self):
         string = ""
         for entry in ["rd", "rs1", "rs2", "imm"]:
-            string += f"{entry:>3}={self[entry]:>2}, " if self[entry] else " "*(max(3, len(entry)) + 4)
+            string += f"{entry:>3}={self[entry]:>2}, " if self[entry] else " "*(max(3, len(entry)) + 5)
         if len(string) > 0:
             idx = string.rindex(", ")
             string = string[:idx]
         return string
         
     def __str__(self) -> str:
-        return f"0x{hex(self.address)} {self.name:<4}{self.registers_to_str()}"
+        return f"{hex(self.address)} {self.name:<4}{self.registers_to_str()}"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -38,14 +42,14 @@ class InstructionDescription(dotdict):
 class InstructionBlockDescription:
     """ Denotes a code block and its instructions. """
 
-    def __init__(self, name, starting_address=0x0):
+    def __init__(self, name:str, starting_address:int=0x0):
         self.name = name
         self.starting_address = starting_address
         self.instructions = []
 
     def __str__(self) -> str:
         return f"code block '{self.name}' ({hex(self.starting_address)}), {len(self.instructions)} instructions:\n " + \
-                "\n ".join([f"{(instr.address - self.starting_address) // 4:>3}. {instr}" for instr in self.instructions])
+                "\n ".join([f"{" " * Print.indent}{(instr.address - self.starting_address) // 4:>3}. {instr}" for instr in self.instructions])
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -53,8 +57,10 @@ class InstructionBlockDescription:
     def addInstruction(self, instr_name, rd=None, rs1=None, rs2=None, imm=None, **kwargs):
         address = self.starting_address + (4 * len(self.instructions))
         instr = InstructionDescription(address, instr_name, rd=rd, rs1=rs1, rs2=rs2, imm=imm)
-        for i in kwargs:
-            print(f" > ignoring register '{i}': {kwargs[i]}!")
+        for register in (arg for arg in kwargs if arg not in _ignored_registers_):
+            print(f"{" " * Print.indent}> WARNING: ignoring all occurrences of register '{register}' " + \
+                  f"(instr: {instr_name}, idx: {len(self.instructions)})")
+            _ignored_registers_.add(register)
         self.instructions.append(instr)
 
     def has_valid_instructions(self):
@@ -71,3 +77,13 @@ class InstructionBlockDescription:
                     # only last instruction may be a branch
                     return False
         return True
+
+    @staticmethod
+    def parse_stringlist(raw_instructions:List['str'], name:str, address_start:int) -> 'InstructionBlockDescription':
+        desc = InstructionBlockDescription(name, address_start)
+        for raw_instructions in raw_instructions:
+            instr_name = re.search("\s[a-z]+\s", raw_instructions).group().strip()
+            registers  = re.findall("([a-z][a-z0-9]+)=(\d+)", raw_instructions)
+            registers  = { r[0]:int(r[1]) for r in registers }
+            desc.addInstruction(instr_name, **registers)
+        return desc

@@ -32,3 +32,7 @@ class Profile:
     def __exit__(self, *args):
         self.end  = time.perf_counter_ns()
         print(f"{self.text} took {(self.end - self.start) / 1_000_000}ms!")
+
+# global variable for setting the indentation
+class Print:
+    indent:int = 0

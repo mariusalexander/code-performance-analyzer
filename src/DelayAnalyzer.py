@@ -16,7 +16,7 @@
 
 from meta_models.structural_model.StructuralModel import StructuralModel, Variant
 
-from src.Common import Profile
+from src.Common import Profile, Print
 from src.DelayGraph import DelayGraphModel, DelayGraphVariant, DelayGraph, SymbolicVariable
 
 class DelayAnalyzer:
@@ -131,10 +131,11 @@ class DelayAnalyzer:
 
             for function_name in delay_graph_variant.scheduling_functions:
                 print(f"  > Resolving delay graph of '{function_name}'")
-                with Profile(f"  > took"):
+                Print.indent = 3
+                with Profile(f"   > took"):
                     delay_graph = delay_graph_variant.scheduling_functions[function_name]
 
-                    num_instructions = sum([int("Enter" in node) for node in delay_graph.nodes()])
+                    num_instructions = sum(int("Enter" in node) for node in delay_graph.nodes())
                     estimations = []
 
                     for output_name in delay_graph.outputs():
@@ -148,7 +149,7 @@ class DelayAnalyzer:
                         output = output.replaced(self.target_variable.name, initial_value)
                         if self.verbose:
                             print(f"   > Resolved {output_name.ljust(10)} :  {before}\t \n" + \
-                                f"              {"".ljust(10)} => {output}")
+                                  f"              {"".ljust(10)} => {output}")
                         if estimate_cpi and output_name in relationships:
                             relation = relationships[output_name]
                             estimations.append(SymbolicVariable(output_name, output.max_value(relation.name)))
@@ -160,4 +161,5 @@ class DelayAnalyzer:
                         max_val.delay -= initial_value.delay
                         print(f"core={variant_name} \tbb={function_name} \tCPI = {f"{max_val.delay}/{num_instructions}":<10} = {(max_val.delay / num_instructions):.3f} \t({max_val.name})")
                         print(f"   > max({", ".join([f"{e}" for e in estimations])})")
-                        print(delay_graph.code_block)
+                        print( "   >", delay_graph.code_block)
+            print()
