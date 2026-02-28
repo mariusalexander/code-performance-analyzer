@@ -19,24 +19,6 @@ class RISCVAbiRegisters:
         self.s2 = 18; self.s3 = 19; self.s4 = 20; self.s5  = 21; self.s6  = 22
         self.s7 = 23; self.s8 = 24; self.s9 = 25; self.s10 = 26; self.s11 = 27
 
-def assert_equal(base_model, other_model):
-    """ Helper method to assert that two delay graph models are equal by comparing their expanded outputs. """
-    assert len(base_model.variants) == len(other_model.variants), \
-           f"Number of variants mismatches! ({len(base_model.variants)} vs expected {other_model.variants})"
-    for variant_name in base_model.variants:
-        base_variant  = base_model.variants[variant_name]
-        other_variant = other_model.variants[variant_name]
-        assert len(base_variant.scheduling_functions) == len(other_variant.scheduling_functions), \
-               f"Number of scheduling functions mismatches! ({len(other_variant.scheduling_functions)} vs expected {base_variant.scheduling_functions})"
-        for function in base_variant.scheduling_functions:
-            baseGraph  = base_variant.scheduling_functions[function]
-            otherGraph = other_variant.scheduling_functions[function]
-            assert len(baseGraph.outputs()) == len(otherGraph.outputs()), \
-                   f"Number of outputs mismatches! ({len(baseGraph.outputs())} vs expected {len(otherGraph.outputs())})"
-            for output_name in baseGraph.outputs():
-                base_output  = baseGraph.get_output(output_name).expanded(baseGraph.intermediates())
-                other_output = otherGraph.get_output(output_name).expanded(otherGraph.intermediates())
-                assert base_output == other_output, f"Mistmatch:\n > {output_name} \t {base_output}\t\n > {" " * (len(output_name) + 1)}\t {other_output}"
 
 def test_vectors(pattern=None):
     r = RISCVAbiRegisters()
@@ -85,6 +67,11 @@ def test_vectors(pattern=None):
     desc.addInstruction("add" , rd=2, rs1=10, rs2=11)
     desc.addInstruction("add" , rd=3, rs1=10, rs2=11)
     desc.addInstruction("add" , rd=4, rs1= 1, rs2=11)
+    code_blocks.append(desc)
+
+    desc = InstructionBlockDescription("bb_test", 0x000003c4)
+    desc.addInstruction("mul" , rd=1, rs1=10, rs2=11)
+    desc.addInstruction("mul" , rd=2, rs1=10, rs2=11)
     code_blocks.append(desc)
 
     assert all(block.is_basic_block() for block in code_blocks)

@@ -17,7 +17,7 @@
 import copy
 
 from itertools import chain
-from typing import List, Dict, Optional, TypeAlias, Self
+from typing import List, Dict, Optional, Self
 from collections import deque
 
 from meta_models.scheduling_model.SchedulingModel import SchedulingModel, Variant, SchedulingFunction, Node, Edge
@@ -416,7 +416,7 @@ class DelayGraphTransformer:
                 continue
             graph.register_input(edge_name, variable)
             term.append(DelayVariable(variable, node.delay))
-            function.static_term.append(DelayVariable(variable, node.delay))
+            #function.static_term.append(DelayVariable(variable, node.delay))
         # append in node to function
         for in_node in node.getAllInNodes():
             for variable in graph.get_node(in_node.name):
