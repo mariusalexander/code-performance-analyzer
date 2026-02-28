@@ -16,7 +16,8 @@ from src.DelayGraph import DelayGraphTransformer
 from src.DelayGraphViewer import DelayGraphViewer
 from src.DelayAnalyzer import DelayAnalyzer
 
-import tests.TestDelayGraph as Tests
+import tests.TestVectors as Examples
+import tests.UnitTests as UnitTests
 
 def main():
 
@@ -46,7 +47,8 @@ def main():
     args_parser.add_argument("--simplify"         , action="store_true", help="Whether to simplify the generated delay graphs.")
     args_parser.add_argument("--nx"               , action="store_true", help="Whether to use networkx graphs (WIP).")
     # inputs
-    args_parser.add_argument("--tests"            , nargs='?', type=str, const='*',  help="Loads test vectors. A Wildcard pattern can be used to load only certain tests.")
+    args_parser.add_argument("--examples"         , nargs='?', type=str, const='*',  help="Loads example basic blocks. A Wildcard pattern can be used to load only certain tests.")
+    args_parser.add_argument("--tests"            , nargs='?', type=str, const='*',  help="Executes unit tests.")
     args_parser.add_argument("--files"            , nargs='+', type=lambda o: pathlib.Path(o).resolve(), const=None, help="...")
     # targets
     args_parser.add_argument("--schedule-graph"   , action="store_true", help="Generates schedule graphs for the generated instruction block schedules (writes to `out-dir`, uses M2-ISA-R-Perf internally)")
@@ -74,6 +76,9 @@ def main():
     elif not args.schedule_model.endswith(".model"):
         args_parser.error(f"Expected model file to end with '.model'!")
 
+    if sum(bool(arg) for arg in (args.files, args.tests, args.examples)) > 1:
+        args_parser.error(f"Conflicting arguments: either use --files, --examples, or --tests!")
+
     # load pickle files
     with open(args.schedule_model, 'rb') as file:
         print(" > loading schedule model...")
@@ -99,15 +104,14 @@ def main():
         print(" > ERROR: No variants available!")
         exit(1)
 
+
     ### model generation ###
 
     # generate block and delay models
     block_schedule = delay_model = None
     
+    # load code blocks from file(s)
     if args.files:
-        if args.tests:
-            args_parser.error(f"Conflicting arguments! (--files vs --tests)")
-        
         print(" > loading from files...")
         descs = []
         for file in args.files:
@@ -124,15 +128,16 @@ def main():
                 print("   >", desc)
                 descs.append(desc)
 
-        block_schedule = BlockSchedulingTransformer(args.verbose).transform(schedule_model, descs)
-        delay_model    = DelayGraphTransformer(args.verbose).transform(block_schedule, descs)
+        block_schedule, delay_model = UnitTests.generate_models(schedule_model, decs, verbose=args.verbose, simplify=args.simplify)
+    # load example code blocks
+    elif args.examples:
+        descs = Examples.test_vectors(pattern=args.examples)
 
-    elif args.tests:
-        block_schedule, delay_model = Tests.generate_models(schedule_model, pattern=args.tests, verbose=args.verbose, simplify=args.simplify)
+        block_schedule, delay_model = UnitTests.generate_models(schedule_model, decs, verbose=args.verbose, simplify=args.simplify)
 
+        # WIP
         if args.nx:
-            descs = Tests.test_vectors(pattern=args.tests)
-            nx_delay_model  = DelayNxGraphTransformer(args.verbose).transform(block_schedule, descs)
+            nx_delay_model = DelayNxGraphTransformer(args.verbose).transform(block_schedule, descs)
             for variant_name in nx_delay_model.variants:
                 variant = nx_delay_model.variants[variant_name]
                 for function_name in variant.scheduling_functions:
@@ -143,6 +148,11 @@ def main():
                     print(f"  > path (length: {longest_path_length}, nodes: {len(longest_path)}):")
                     print( "   ->", "\n   -> ".join(" -> ".join(longest_path[i:i+5]) for i in range(0, len(longest_path), 5)))
     
+    # run unittests
+    elif args.tests:
+        success = UnitTests.run()
+        exit(success)
+
     if block_schedule is None or delay_model is None:
         print(" > ERROR: No block schedule was generated!")
         exit(1)

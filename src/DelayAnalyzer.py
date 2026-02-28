@@ -17,7 +17,7 @@
 from meta_models.structural_model.StructuralModel import StructuralModel, Variant
 
 from src.Common import Profile, Print
-from src.DelayGraph import DelayGraphModel, DelayGraphVariant, DelayGraph, SymbolicVariable
+from src.DelayGraph import DelayGraphModel, DelayGraphVariant, DelayGraph, DelayVariable
 
 class DelayAnalyzer:
 
@@ -27,9 +27,9 @@ class DelayAnalyzer:
         self.verbose = verbose
         self.structural_model = structural_model
         self.delay_graph_model = delay_graph_model
-        self.target_variable = SymbolicVariable("if")
+        self.target_variable = DelayVariable("if")
         self.mappings = { var_name:{} for var_name in self.delay_graph_model.variants }
-        self._zero = SymbolicVariable("zero")
+        self._zero = DelayVariable("zero")
 
     def assume_registers_available(self):
         """
@@ -99,7 +99,7 @@ class DelayAnalyzer:
                                 if self.verbose:
                                     print(f" > assuming {next_variable_name} = 1 + {variable_name}")
                                 printed.append(next_variable_name)
-                            mappings[next_variable_name] = SymbolicVariable(variable_name, 1)
+                            mappings[next_variable_name] = DelayVariable(variable_name, 1)
                             if next_stage not in next_stages:
                                 next_stages.append(next_stage)
                     stages = next_stages
@@ -152,7 +152,7 @@ class DelayAnalyzer:
                                   f"              {"".ljust(10)} => {output}")
                         if estimate_cpi and output_name in relationships:
                             relation = relationships[output_name]
-                            estimations.append(SymbolicVariable(output_name, output.max_value(relation.name)))
+                            estimations.append(DelayVariable(output_name, output.max_value(relation.name)))
 
                     if estimations:
                         estimations.sort(key=lambda e: list(relationships.keys()).index(e.name))

@@ -1,10 +1,6 @@
 import fnmatch
 
-from src.Common import PrintDisabled
-from src.BlockSchedulingTransformer import BlockSchedulingTransformer
 from src.InstructionBlockDescription import InstructionBlockDescription
-
-from src.DelayGraph import DelayGraphTransformer
 
 class RISCVAbiRegisters:
     """Maps 32bit RISC-V ABI register names onto their actual register numbers."""
@@ -40,7 +36,7 @@ def assert_equal(base_model, other_model):
             for output_name in baseGraph.outputs():
                 base_output  = baseGraph.get_output(output_name).expanded(baseGraph.intermediates())
                 other_output = otherGraph.get_output(output_name).expanded(otherGraph.intermediates())
-                assert base_output == other_output, f"Mistmatch:\n> {output_name} \t {base_output}\t\n > {" " * (len(output_name) + 1)}\t {oother_output}"
+                assert base_output == other_output, f"Mistmatch:\n > {output_name} \t {base_output}\t\n > {" " * (len(output_name) + 1)}\t {other_output}"
 
 def test_vectors(pattern=None):
     r = RISCVAbiRegisters()
@@ -98,17 +94,3 @@ def test_vectors(pattern=None):
         code_blocks = [block for block in code_blocks if fnmatch.fnmatch(block.name, pattern)]
 
     return code_blocks
-
-def generate_models(sched_model, pattern=None, verbose=False, simplify=False):
-    code_blocks = test_vectors(pattern)
-
-    block_schedule = BlockSchedulingTransformer(verbose=verbose).transform(sched_model, code_blocks)
-    delay_model    = DelayGraphTransformer(verbose=verbose).transform(block_schedule, code_blocks, simplify=simplify)
-    with PrintDisabled():
-        delay_model_other = DelayGraphTransformer(verbose=False).transform(block_schedule, code_blocks, simplify=not simplify)
-
-    # both the simplified and non simplified models should be equal in their prediction
-    assert_equal(base_model =delay_model       if not simplify else delay_model_other, \
-                 other_model=delay_model_other if not simplify else delay_model)
-
-    return block_schedule, delay_model

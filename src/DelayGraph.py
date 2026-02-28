@@ -17,7 +17,7 @@
 import copy
 
 from itertools import chain
-from typing import List, Dict, Optional, TypeAlias
+from typing import List, Dict, Optional, TypeAlias, Self
 from collections import deque
 
 from meta_models.scheduling_model.SchedulingModel import SchedulingModel, Variant, SchedulingFunction, Node, Edge
@@ -25,7 +25,7 @@ from meta_models.scheduling_model.SchedulingModel import SchedulingModel, Varian
 from src.Common import Profile
 from src.InstructionBlockDescription import InstructionBlockDescription
 
-class SymbolicVariable:
+class DelayVariable:
     """Represents a variable in a max term, associated with an added delay."""
 
     def __init__(self, name:str, delay:int=0):
@@ -38,8 +38,8 @@ class SymbolicVariable:
     def __repr__(self):
         return self.__str__()
 
-    def merged(self, delay:int) -> 'SymbolicVariable':
-        return SymbolicVariable(self.name, self.delay + delay)
+    def merged(self, delay:int) -> 'DelayVariable':
+        return DelayVariable(self.name, self.delay + delay)
 
 class MaxTerm(list):
     """Represents a max term, made out of a list of variables."""
@@ -53,17 +53,14 @@ class MaxTerm(list):
     def __repr__(self) -> str:
         return self.__str__()
 
-    def __add__(self, value:SymbolicVariable):
-        return super().__add__(value)
-
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return len(self) == len(other) and all((v.name in other and other.max_value(v.name) == v.delay) for v in self)
 
-    def __contains__(self, value:str|SymbolicVariable) -> bool:
+    def __contains__(self, value) -> bool:
         if isinstance(value, str):
             assert self.count(v.name == value for v in self) <= 1, f"Duplicate variable '{value}'!"
             return any(v.name == value for v in self)
-        assert isinstance(value, SymbolicVariable), f"Incompatible type '{type(value)}'!"
+        assert isinstance(value, DelayVariable), f"Incompatible type '{type(value)}'!"
         return value.name in self
 
     def max_value(self, name:str) -> Optional[int]:
@@ -82,19 +79,21 @@ class MaxTerm(list):
         """
         return list(dict.fromkeys(v.name for v in self)) # keeps order but removes duplicates
 
-    def plus(self, value:int) -> 'MaxTerm':
+    def plus(self, value:int) -> Self:
         if value < 0:
             raise ValueError("Only positive values are allowed")
-        return MaxTerm(v.merged(value) for v in self).simplified()
+        for v in self:
+            v.delay += value
+        return self
 
     def resolved(self, variable_name:str) -> 'MaxTerm':
         """
         Returns a new term in which the variable's delay is merged with all other variables by evaluating the max delay.
         """
-        value    = self.max_value(variable_name)
+        value = self.max_value(variable_name)
         if value is None:
             value = 0
-        new_term = MaxTerm(SymbolicVariable(v.name, max(v.delay, value)) for v in self if v.name != variable_name)
+        new_term = MaxTerm(DelayVariable(v.name, max(v.delay, value)) for v in self if v.name != variable_name)
         return new_term
 
     def remove(self, variable_name:str) -> 'MaxTerm':
@@ -103,7 +102,7 @@ class MaxTerm(list):
             assert len(filtered) == 1
             super().remove(filtered[0])
 
-    def replaced(self, variable_name:str, new_variable:'SymbolicVariable') -> 'MaxTerm':
+    def replaced(self, variable_name:str, new_variable:'DelayVariable') -> 'MaxTerm':
         """
         Replaces all instances of `variable_name` with `new_variable.name` and merges the delays.
         Returns a new, simplified term.
@@ -133,7 +132,7 @@ class MaxTerm(list):
         Minimizes the list of variables. Each variable is listed exactly once.
         Keeps order of names. Returns a new term.
         """
-        return MaxTerm(SymbolicVariable(name, self.max_value(name)) for name in self.names())
+        return MaxTerm(DelayVariable(name, self.max_value(name)) for name in self.names())
 
     def repacked(self, intermediates:Dict[str, 'MaxTerm']) -> 'MaxTerm':
         """
@@ -177,7 +176,7 @@ class MaxTerm(list):
             distance = current
         return distance
 
-    def find_best_intermediate(self, intermediates:Dict[str, 'MaxTerm'], expand=True, allow_negative_distance=False) -> Optional['SymbolicVariable']:
+    def find_best_intermediate(self, intermediates:Dict[str, 'MaxTerm'], expand=True, allow_negative_distance=False) -> Optional['DelayVariable']:
         """
         Attempts to find an intermediate variable that best covers `self` such that it yields the smallest term.
         `self` must be unrolled to find an intermediate.
@@ -210,7 +209,7 @@ class MaxTerm(list):
             last_len    = curr_len
         if last_name is None:
             return None
-        return SymbolicVariable(last_name, last_factor)
+        return DelayVariable(last_name, last_factor)
 
 class DelayGraphModel:
 
@@ -416,19 +415,25 @@ class DelayGraphTransformer:
             if variable == 'r0':
                 continue
             graph.register_input(edge_name, variable)
-            term.append(SymbolicVariable(variable, node.delay))
+            term.append(DelayVariable(variable, node.delay))
+            function.static_term.append(DelayVariable(variable, node.delay))
         # append in node to function
         for in_node in node.getAllInNodes():
             for variable in graph.get_node(in_node.name):
                 term.append(variable.merged(node.delay))
-        # append variable delay of resource model
-        if node.resourceModel:
+            #in_function = graph.get_node(in_node.name)
+            #for variable in in_function.static_term:
+            #    function.static_term.append(variable.merged(node.delay))
+        #if "MUL" in node.name:
+        #    return function
             # TODO: properly integrate dynamic delays (cannot be treated as input variables)
             # use name of node as unique resource delay
-            variable = self.__simplify_variable_name(node.name)
-            graph.register_dynamic_variable(node.name, variable)
-            variable = SymbolicVariable(variable, node.delay)
-            term.append(variable)
+            #variable = self.__simplify_variable_name(node.name)
+            #graph.register_dynamic_variable(node.name, variable)
+            #variable = DelayVariable(variable, node.delay)
+            #function.append(variable)
+        if node.resourceModel:
+            raise RuntimeError("Dynamic delays are currently not supported")
         return term
 
     def __set_output(self, node:Node, function:'MaxTerm', graph:'DelayGraph') -> str:
@@ -453,7 +458,7 @@ class DelayGraphTransformer:
         """
         current_term = graph.get_node(node_name)
         expanded = current_term.expanded(graph.intermediates())
-        new_term = [SymbolicVariable(intermediate)]
+        new_term = [DelayVariable(intermediate)]
 
         # check if term is covered by other intermediate
         best_match = expanded.find_best_intermediate(intermediates=graph.intermediates(), expand=False, allow_negative_distance=True)
@@ -471,11 +476,13 @@ class DelayGraphTransformer:
                 if self.verbose:
                     print(f"INFO: intermediate '{best_match.name}' is a negative multiple of '{intermediate}'! (distance: {best_match.delay})")
                 assert len(other_term) == len(expanded)
-                new_term = MaxTerm((SymbolicVariable(intermediate, 0),))
+                best_match.delay *= -1
+                new_term = MaxTerm((DelayVariable(intermediate, 0),))
+                out_term = new_term.simplified().plus(best_match.delay)
                 # update old output
-                graph.set_output(best_match.name, new_term.plus(-best_match.delay))
+                graph.set_output(best_match.name, out_term)
                 graph.register_intermediate(intermediate, expanded)
-                graph.replace_intermediate(best_match.name, intermediate, delay=-best_match.delay)
+                graph.replace_intermediate(best_match.name, intermediate, delay=best_match.delay)
                 graph.set_node(node_name, new_term)
                 return
         # save new intermediate and update output of this node
