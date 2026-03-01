@@ -82,8 +82,6 @@ class DelayGraphViewer:
                 output_names = delay_graph.outputs()
                 alias_names  = delay_graph.intermediates()
                 input_names  = delay_graph.inputs()
-                # output_names = sorted(list(output_names))
-                # input_names  = sorted(list(input_names))
 
                 # create input nodes
                 with dot_graph.subgraph() as subgraph:

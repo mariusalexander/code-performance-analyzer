@@ -23,7 +23,7 @@ class RISCVAbiRegisters:
 def test_vectors(pattern=None):
     r = RISCVAbiRegisters()
 
-    code_blocks      = []
+    code_blocks = []
     desc = InstructionBlockDescription("bb_custom_example", 0x100047c)
     desc.addInstruction("addi", rd =r.sp  , rs1=r.sp, imm=(-0x1b0))
     desc.addInstruction("sw"  , rs1=r.s0  , rs2=r.sp)
@@ -71,7 +71,7 @@ def test_vectors(pattern=None):
 
     desc = InstructionBlockDescription("bb_test", 0x000003c4)
     desc.addInstruction("mul" , rd=1, rs1=10, rs2=11)
-    desc.addInstruction("mul" , rd=2, rs1=10, rs2=11)
+    desc.addInstruction("mul" , rd=2, rs1=12, rs2=13)
     code_blocks.append(desc)
 
     assert all(block.is_basic_block() for block in code_blocks)

@@ -337,7 +337,7 @@ class BlockSchedulingTransformer:
                 block_node.createDynamicOutEdge(connector, model)
 
     def __findElementByName(self, elements, name, error_str = ""):
-        element = list(filter(lambda e: e.name == name, elements))
+        element = tuple(filter(lambda e: e.name == name, elements))
         assert len(element) == 1, error_str
         return element[0]
 

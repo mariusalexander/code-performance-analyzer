@@ -1,5 +1,8 @@
+
+from typing import List, Self
+
 from src.Common import PrintDisabled
-from src.DelayGraph import DelayVariable, MaxTerm
+from src.MaxPlusAlgebra import DelayVariable, MaxTerm, MaxFunction
 
 def term_simple():
     term = MaxTerm()
@@ -24,16 +27,16 @@ def test_vectors():
 
 ###############################################################################
 
-def MaxTerm_max_value():
+def MaxTerm_max_delay():
     for factory, reference in test_vectors():
         term = factory()
-        assert all(term.max_value(v.name) == reference[v.name] for v in term), f"max_value: {term} != {reference}"
+        assert all(term.max_delay(v.name) == reference[v.name] for v in term), f"max_delay{term} should yield {reference}"
 
 def MaxTerm_plus():
     for factory, reference in test_vectors():
         term = factory()
         term.plus(1)
-        assert all(term.max_value(v.name) == (reference[v.name] + 1) for v in term), f"plus: {term} != {reference}"
+        assert all(term.max_delay(v.name) == (reference[v.name] + 1) for v in term), f"max{term} should equal {reference} + 1"
 
 def MaxTerm_names():
     for factory, reference in test_vectors():
@@ -45,11 +48,31 @@ def MaxTerm_resolved():
     for factory, reference in test_vectors():
         term = factory()
         term = term.resolved("a")
-        assert all(term.max_value(v.name) == reference["a"] for v in term), f"resolved: {term} vs {reference}"
+        assert all(term.max_delay(v.name) == reference["a"] for v in term), f"resolving {term} should yield {reference["a"]}"
+
+def MaxFunction_is_covered_by():
+    function1 = MaxFunction()
+    function1.append_static_var(DelayVariable("if", 2))
+    function1.append_static_var(DelayVariable("pc", 2))
+    function1.append_static_var(DelayVariable("id", 1))
+    function1.append_dynamic_var(DelayVariable("d1"))
+    function1.append_dynamic_var(DelayVariable("d2", 1))
+    function1.append_dynamic_var(DelayVariable("d3"))
+
+    function2 = MaxFunction()
+    function2.append_static_var(DelayVariable("if", 2))
+    function2.append_static_var(DelayVariable("pc", 1))
+    function2.append_static_var(DelayVariable("id", 1))
+    function2.append_dynamic_var(DelayVariable("d1", 2))
+    function2.append_dynamic_var(DelayVariable("d2"))
+
+    assert function2.is_covered_by(function1), f"{function2} should be covered by {function1}"
 
 def tests():
-    MaxTerm_max_value()
+    MaxTerm_max_delay()
     MaxTerm_plus()
     MaxTerm_names()
     MaxTerm_resolved()
+
+    MaxFunction_is_covered_by()
     return 0

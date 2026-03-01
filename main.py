@@ -18,6 +18,7 @@ from src.DelayAnalyzer import DelayAnalyzer
 
 import tests.TestVectors as Examples
 import tests.UnitTests as UnitTests
+from src.DelayGraph_v2 import DelayGraphTransformer_v2
 
 def main():
 
@@ -49,6 +50,7 @@ def main():
     # inputs
     args_parser.add_argument("--examples"         , nargs='?', type=str, const='*',  help="Loads example basic blocks. A Wildcard pattern can be used to load only certain tests.")
     args_parser.add_argument("--tests"            , nargs='?', type=str, const='*',  help="Executes unit tests.")
+    args_parser.add_argument("--v2"               , action="store_true", help="Whether to use version 2 of models (WIP).")
     args_parser.add_argument("--files"            , nargs='+', type=lambda o: pathlib.Path(o).resolve(), const=None, help="...")
     # targets
     args_parser.add_argument("--schedule-graph"   , action="store_true", help="Generates schedule graphs for the generated instruction block schedules (writes to `out-dir`, uses M2-ISA-R-Perf internally)")
@@ -145,11 +147,17 @@ def main():
                     with Profile(" > calculating longest path"):
                         longest_path = nx.dag_longest_path(graph.G)
                         longest_path_length = nx.dag_longest_path_length(graph.G)
+                    print(f"  > num paths: {len(tuple(nx.all_simple_paths(graph.G, source=longest_path[0], target=longest_path[-1])))}")
                     print(f"  > path (length: {longest_path_length}, nodes: {len(longest_path)}):")
                     print( "   ->", "\n   -> ".join(" -> ".join(longest_path[i:i+5]) for i in range(0, len(longest_path), 5)))
     
     # run unittests
     elif args.tests:
+        if args.v2:
+            descs = Examples.test_vectors(pattern=args.tests)
+            block_schedule = BlockSchedulingTransformer(verbose=args.verbose).transform(schedule_model, descs)
+            delay_model    = DelayGraphTransformer_v2(verbose=args.verbose).transform(block_schedule, descs)
+            exit(0)
         success = UnitTests.run()
         exit(success)
 

@@ -152,10 +152,10 @@ class DelayAnalyzer:
                                   f"              {"".ljust(10)} => {output}")
                         if estimate_cpi and output_name in relationships:
                             relation = relationships[output_name]
-                            estimations.append(DelayVariable(output_name, output.max_value(relation.name)))
+                            estimations.append(DelayVariable(output_name, output.max_delay(relation.name)))
 
                     if estimations:
-                        estimations.sort(key=lambda e: list(relationships.keys()).index(e.name))
+                        estimations.sort(key=lambda e: tuple(relationships.keys()).index(e.name))
                         # choose the variable with biggest change in its delay
                         max_val = max(estimations, key=lambda v: (v.delay - relationships[v.name].delay))
                         max_val.delay -= initial_value.delay

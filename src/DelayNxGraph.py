@@ -163,7 +163,7 @@ class DelayNxGraphTransformer:
             if "MUL_" in in_node.name:
                 var_name = self.__simplify_variable_name(in_node.name)
                 print("CREATING VARIABLE", var_name, "INTO NODE", in_node.name)
-                graph.G.add_edge(in_node.name, node.name, weight=NxVariable(var_name, in_node.delay))
+                graph.G.add_edge(in_node.name, node.name, weight=3) #NxVariable(var_name, in_node.delay))
             else: 
                 graph.G.add_edge(in_node.name, node.name, weight=in_node.delay)
         # append variable delay of resource model
