@@ -184,7 +184,7 @@ class DelayGraphTransformer:
 
             # create max term, discarding redundant variables
             function = self.__get_inputs(node, graph)
-            function = function.repacked(graph.intermediates()).sorted()
+            function = function.repacked(graph.intermediates())
 
             # store function of current node
             graph.set_node(node.name, function)

@@ -41,5 +41,8 @@ def assert_equal(base_model, other_model):
                 assert base_output == other_output, f"Mistmatch:\n > {output_name} \t {base_output}\t\n > {" " * (len(output_name) + 1)}\t {other_output}"
 
 def run():
+    print()
+    print("-- UNITTESTS --")
     TestMaxTerm.tests()
+    print(" > executed unittests successfully")
     return 0

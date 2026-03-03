@@ -164,8 +164,7 @@ class DelayGraphTransformer_v2:
             assert node.name not in graph.nodes()
 
             # create max term, discarding redundant variables
-            with PrintDisabled():
-                functions = self.__get_inputs(node, graph)
+            functions = self.__get_inputs(node, graph)
             functions.sort()
 
             # store function of current node
@@ -184,7 +183,7 @@ class DelayGraphTransformer_v2:
         # make sure all nodes have been processed
         assert all((n.name in graph.nodes()) for n in block_function.getAllNodes())
 
-        if True or self.verbose:
+        if self.verbose:
             print(f"   > outputs:")
             for output in graph.outputs():
                 self.print_function(output, graph.get_output(output), indent=4)
@@ -198,36 +197,25 @@ class DelayGraphTransformer_v2:
         """
         functions = MaxFunctionList()
 
-        print()
-        print(node.name)
         for in_node in node.getAllInNodes():
-            print(node.name, "<-", in_node.name)
             other_functions = graph.get_node(in_node.name)
-            functions.merge(f for f in other_functions)
-            continue
+            for other_function in other_functions:
+                functions.merge(other_function)
 
         for in_edge in node.getAllInEdges():
             edge_name = self.__variable_name(in_edge)
             variable  = self.__simplify_variable_name(edge_name)
             if variable == 'r0':
                 continue
-            print("# ->", functions)
             graph.register_input(edge_name, variable)
             functions.append_static_var(DelayVariable(variable))
 
-        if "MUL_" in node.name:
+        functions.plus(node.delay)
+
+        if node.resourceModel or "MUL_" in node.name:
             variable = self.__simplify_variable_name(node.name)
             graph.register_dynamic_variable(node.name, variable)
-            print("# ->", functions)
-            functions.append_dynamic_var(DelayVariable(variable))
-        elif node.delay != 0:
-            print("# ->", functions)
-            functions.plus(node.delay)
-
-        print("# ->", functions)
-
-        if node.resourceModel:
-            raise RuntimeError("Dynamic delays are currently not supported")
+            functions.append_coefficient(DelayVariable(variable))
 
         return functions
 

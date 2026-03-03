@@ -63,8 +63,11 @@ class MaxTerm(list):
         return list(dict.fromkeys(v.name for v in self)) # keeps order but removes duplicates
 
     def plus(self, value:int) -> Self:
+        """ 
+        Adds `value` to the delay of each variable. Returns self for operator chaining.
+        """
         if value < 0:
-            raise ValueError("Only positive values are allowed")
+            raise ValueError("Only positive values are expected")
         for v in self:
             v.delay += value
         return self
@@ -80,10 +83,14 @@ class MaxTerm(list):
         return new_term
 
     def remove(self, variable_name:str) -> Self:
-        filtered = tuple(filter(lambda v: v.name == variable_name, self))
+        """ 
+        Removes each instance of the variable from this term. Does nothing if not variable with given name exists in this term.
+        Returns self for operator chaining.
+        """
+        filtered = tuple(v for v in self if v.name == variable_name)
         if len(filtered) > 0:
-            assert len(filtered) == 1
-            super().remove(filtered[0])
+            for var in filtered:
+                super().remove(var)
         return self
 
     def replaced(self, variable_name:str, new_variable:'DelayVariable') -> 'MaxTerm':
@@ -99,7 +106,7 @@ class MaxTerm(list):
         Returns a new term with only the variables that this term contains but `other` does not.
         Keeps order of names.
         """
-        return MaxTerm(filter(lambda v: v.name not in other.names(), self)).simplified()
+        return MaxTerm(v for v in self if v.name not in other).simplified()
 
     def simplified(self) -> 'MaxTerm':
         """
@@ -108,12 +115,13 @@ class MaxTerm(list):
         """
         return MaxTerm(DelayVariable(name, self.max_delay(name)) for name in self.names())
 
-    def sorted(self) -> 'MaxTerm':
+    def sort(self) -> Self:
         """
-        Returns a new term sorted by its delay (descending).
+        Sorts the term in place by its delay (descending).
         For variables with same delay, alphabetical order is used.
         """
-        return MaxTerm(sorted(self, key=lambda v: (-v.delay, v.name)))
+        super().sort(key=lambda v: (-v.delay, v.name))
+        return self
 
     def distance(self, other:'MaxTerm') -> Optional[int]:
         """
@@ -142,6 +150,8 @@ class MaxTerm(list):
         Expands (unrolls) all intermediate variables by their corresponding variables.
         Returns a new, simplified term.
         """
+        if len(intermediates) == 0:
+            return self.simplified()
         expanded = MaxTerm(chain((i.merged(v.delay) for v in self if v.name in intermediates for i in intermediates[v.name]), \
                                  (v                 for v in self if v.name not in intermediates)))
         assert all(i.name not in intermediates for i in expanded)
@@ -152,13 +162,15 @@ class MaxTerm(list):
         Attempts to find a new term, that reuses an intermediate variable to simplify the term.
         Returns a new, simplified, and sorted term.
         """
+        if len(intermediates) == 0:
+            return self.simplified().sort()
         expanded   = self.expanded(intermediates)
         best_match = expanded.find_best_intermediate(intermediates, expand=False)
         if best_match is None:
             return expanded # no need to simplify
         repacked = expanded.difference(intermediates[best_match.name])
         repacked.append(best_match)
-        return repacked.sorted()
+        return repacked.sort()
 
     def find_best_intermediate(self, intermediates:Dict[str, 'MaxTerm'], expand=True, allow_negative_distance=False) -> Optional['DelayVariable']:
         """
@@ -197,173 +209,227 @@ class MaxTerm(list):
 
 class MaxFunction:
     """ 
-    Represents a max function, made from an inner term (variables) and an outer term (coefficients).
+    Represents a max function, made from an inner term (variables with static delays) and an outer term (coefficients).
+    The coefficients cannot be merged into the inner term since their delay is considered to be dynamic, variable, or symbolic 
+    and thus the delay cannot be resolved yet.
+
     Example:
-        max(<variables>) + coefficients
+        max(<variables>) + <coefficients>
     """
 
     def __init__(self):
         # denoting inner term: max(a, b, c)
-        self.variables    = MaxTerm()
+        self.static_vars    = MaxTerm()
         # denoting outer term: max(...) + a + b + c
         self.coefficients = MaxTerm()
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.coefficients:
-            return f"max{self.variables} + {str(self.coefficients).replace(',', ' +')[1:-1]}"
-        return f"max{self.variables}"
+            return f"max{self.static_vars} + {str(self.coefficients).replace(',', ' +')[1:-1]}"
+        return f"max{self.static_vars}"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         assert isinstance(other, MaxFunction), f"Incompatible type '{type(value)}'!"
-        return self.variables == other.variables and self.coefficients == other.coefficients
-
-    def is_empty(self) -> bool:
-        return len(self.variables) == 0 and len(self.coefficients) == 0
-
-    def simplified(self):
-        new = MaxFunction()
-        new.assign_to(self)
-        return new
+        return self.static_vars == other.static_vars and self.coefficients == other.coefficients
 
     def iter_all_vars(self):
-        return chain(self.variables, self.coefficients)
+        """ 
+        Returns an generator that can be used to iterate over all variables, both static and the coefficients.
+        """
+        return chain(self.static_vars, self.coefficients)
 
-    def plus(self, value:int):
-        if value < 0:
-            raise ValueError("Only positive values are allowed")
-        for v in self.coefficients if self.coefficients else self.variables:
-            v.delay += value
-        return self
+    def is_empty(self) -> bool:
+        """ 
+        Returns whether both the inner term and outer term are empty.
+        """
+        return len(self.static_vars) == 0 and len(self.coefficients) == 0
 
-    def assign_to(self, other:'MaxFunction'):
-        self.variables    = other.variables.simplified()
-        self.coefficients = other.coefficients.simplified()
-        return self
+    def is_static(self) -> bool:
+        """ 
+        Returns whether this function only consists of static variables (i.e. only the inner term).
+        """
+        return len(self.coefficients) == 0
 
-    def is_covered_by(self, other):
-        num_this_cofactors  = len(self.coefficients.names())
-        num_other_cofactors = len(other.coefficients.names())
-        # Each cofactor must be at least equal to one
-        #  Other: max(2X, 1Y, 1Z) +  d1    + d2
-        #  Self:  max(2X, 1Y, 0Z) + (d1+1)
-        #                             ^ covered by other function since d2 is always at least 1
-        offset = num_other_cofactors - num_this_cofactors
-
-        return  all((v in other.variables and v.delay <= other.variables.max_delay(v.name)) for v in self.variables) \
-            and all((v in other.coefficients) for v in self.coefficients) \
+    def is_covered_by(self, other) -> bool:
+        """ 
+        Returns whether this function is covered by the other function. A function 'A' covers another function 'B' if 
+        1. all static variables in 'B' exist in 'A' and have an equal or higher delay associated (according to the max-operation) and
+        2. all coefficients in 'A' also exist in 'B' and
+        3. the sum of all coefficients in 'A' and their respective base-delay is equal or less than the sum of coefficients in 'B' 
+           and their respective base-delay plus one - since each coefficient must be at least equal to one.
+        Example for 3)
+         other: max(2X, 1Y, 1Z) +  d1    + d2
+         self:  max(2X, 1Y, 1Z) + (d1+1)
+                                    ^ covered by other function since d2 is always at least 1
+        """
+        num_this_coefficients  = len(self.coefficients.names())
+        num_other_coefficients = len(other.coefficients.names())
+        offset = num_other_coefficients - num_this_coefficients
+        return  all((v.name in other.static_vars and v.delay <= other.static_vars.max_delay(v.name)) for v in self.static_vars) \
+            and all((v.name in other.coefficients) for v in self.coefficients) \
             and sum( v.delay for v in self.coefficients) <= sum(v.delay for v in other.coefficients) + offset \
             and offset >= 0
 
-    def is_static(self) -> bool:
-        return len(self.coefficients) == 0
+    def simplified(self) -> 'MaxFunction':
+        """ 
+        Returns a new function in which each static variable and each coefficient is listed exactly once. Keeps order of names.
+        """
+        copy = MaxFunction()
+        copy.assign_to(self)
+        return copy
 
-    def append_static_var(self, variable:'DelayVariable'):
+    def assign_to(self, other:'MaxFunction') -> Self:
+        """ 
+        Assigns this function to be the same as the other function. A deepcopy is made by minimizing each term.
+        Returns self for operator chaining.
+        """
+        self.static_vars  = other.static_vars.simplified()
+        self.coefficients = other.coefficients.simplified()
+        return self
+
+    def plus(self, value:int) -> Self:
+        """ 
+        Adds `value` to the delay of each variable. Returns self for operator chaining.
+        """
+        if value < 0:
+            raise ValueError("Only positive values are allowed")
+        for v in (self.coefficients if len(self.coefficients) > 0 else self.static_vars):
+            v.delay += value
+        return self
+
+    def sort(self) -> Self:
+        """
+        Sorts the inner and outer term in place by its base-delay (descending).
+        For variables with same delay, alphabetical order is used.
+        Returns self for operator chaining.
+        """
+        self.static_vars.sort()
+        self.coefficients.sort()
+        return self
+
+    def append_static_var(self, variable:'DelayVariable') -> Self:
+        """ 
+        Appends the variable to the static term of this function. Returns self for operator chaining.
+        """
         assert isinstance(variable, DelayVariable), f"Incompatible type '{type(value)}'!"
         assert variable not in self.coefficients
-        self.variables.append(variable)
+        self.static_vars.append(variable)
         return self
 
-    def append_dynamic_var(self, variable:'DelayVariable'):
+    def append_coefficient(self, variable:'DelayVariable') -> Self:
+        """ 
+        Appends the variable as a coefficient to this function. Returns self for operator chaining.
+        """
         assert isinstance(variable, DelayVariable), f"Incompatible type '{type(value)}'!"
-        assert variable not in self.variables
+        assert variable not in self.static_vars
         self.coefficients.append(variable)
         return self
-
 
 class MaxFunctionList(list):
 
     def __init__(self, iterable=None):
         super().__init__(iterable if iterable is not None else [])
 
-    def append_static_var(self, variable:'DelayVariable'):
-        print("# appending var:      ", variable.name)
+    def plus(self, value:int) -> Self:
+        """ 
+        Adds `value` to each function. Returns self for operator chaining.
+        """
+        for function in self:
+            function.plus(value)
+        return self
+
+    def sort(self) -> Self:
+        """
+        Sorts each function in place by its delay (descending).
+        For variables with same delay, alphabetical order is used.
+        All functions are then sorted by their number of static variables and coefficients.
+        Returns self for operator chaining.
+        """
+        for function in self:
+            function.sort()
+        super().sort(key=lambda f: (len(f.static_vars), len(f.coefficients)))
+        return self
+
+    def merge(self, other_function:'MaxFunction') -> Self:
+        """
+        Merges the other function with the existing functions such that redundant functions are not appended and functions with redundant variables are minimized.
+        Returns self for operator chaining.
+        """
+        theirs = other_function
+        if theirs.is_empty():
+            return self
+
+        # check if other function covers any exisiting function or is covered
+        for ours in self:
+            if theirs.is_covered_by(ours):
+                return self
+            if ours.is_covered_by(theirs):
+                # replace our term with theirs
+                ours.assign_to(theirs)
+                return self
+
+        # attempt to merge other function
+        for ours in self:
+            static, dynamic = theirs if theirs.is_static() else ours, theirs if ours.is_static() else ours
+            # both terns are static -> can merge inner terms
+            if dynamic.is_static():
+                ours.static_vars = MaxTerm(theirs.static_vars + ours.static_vars).simplified()
+                return self
+            # only one term is static
+            # terms may partially cover each other -> remove redundant variables
+            # example:
+            #  Static:  max(3X, 2Y, 3Z, 1U)
+            #  Dynamic: max(2X, 1Y, 1Z) + d1
+            # yields:
+            #  -> Static:  max(3Z, 1U)
+            #  -> Dynamic: max(2X, 1Y, 1Z) + d1
+            elif static.is_static():
+                redundant = []
+                # each coefficient must be at least equal to one
+                num_coefficients = sum(v.delay + 1 for v in dynamic.coefficients)
+                for v in static.static_vars:
+                    max_delay = dynamic.static_vars.max_delay(v.name)
+                    max_delay = (0 if max_delay is None else max_delay) + num_coefficients
+                    if v.delay >= num_coefficients and v.delay <= max_delay:
+                        redundant.append(v.name)
+                if len(redundant) > 0:
+                    assert len(redundant) != len(static.static_vars), \
+                           f"unreachable condition: dynamic term '{dynamic}' should not cover static term '{static}'!"
+                    # create copy of other function
+                    if theirs is static:
+                        static = theirs = theirs.simplified()
+                    for name in redundant:
+                        static.static_vars.remove(name)
+                    self.append(theirs)
+                    return self
+            # both terms are dynamic
+            else: 
+                pass
+        # cannot be merged -> append new function
+        self.append(theirs.simplified())
+        return self
+
+    def append_static_var(self, variable:'DelayVariable') -> Self:
+        """ 
+        Appends and merges the static variable. Returns self for operator chaining.
+        """
         functions = tuple(f for f in self if f.is_static())
         for function in functions:
             function.append_static_var(variable)
+        # add new term if no static term is available
         if len(self) == 0 or len(functions) == 0:
             function = MaxFunction()
             function.append_static_var(variable)
             self.append(function)
+        return self
 
-    def append_dynamic_var(self, variable:'DelayVariable'):
-        print("# appending dynamic:  ", variable.name)
+    def append_coefficient(self, variable:'DelayVariable') -> Self:
+        """ 
+        Appends the coefficient to each function. Returns self for operator chaining.
+        """
         for function in self:
-            function.append_dynamic_var(variable)
-
-    def plus(self, value:int):
-        print("# adding:", value)
-        for function in self:
-            function.plus(value)
-
-    def sort(self):
-        for function in self:
-            function.variables = function.variables.sorted()
-            function.coefficients = function.coefficients.sorted()
-
-    def merge(self, functions:types.GeneratorType):
-        if not isinstance(functions, types.GeneratorType):
-            raise TypeError("expected GeneratorType")
-
-        mylen = len(self)
-        new_functions = []
-        for other in functions:
-            if other.is_empty(): 
-                print("# other is empty", other)
-                continue
-            handled = False
-            for this in self:
-                if other.is_covered_by(this):
-                    print("# not appending:      ", other, "is covered by")
-                    print("#                     ", this)
-                    handled = True
-                    break
-                if this.is_covered_by(other):
-                    print("# replacing term:     ", this, "is covered by")
-                    print("#                     ", other)
-                    this.assign_to(other)
-                    handled = True
-                    break
-            if handled: continue
-
-            for i in range(0, mylen):
-                this = self[i]
-                if other.is_static():
-                    if this.is_static():
-                        print("# merging static term:", this, "with")
-                        print("#                     ", other)
-                        this.variables = MaxTerm(other.variables + this.variables).simplified()
-                        handled = True
-                        continue
-                    distance = this.variables.distance(other.variables)
-                    assert distance is None or distance > 0
-                    if distance == 1:
-                        diff = other.variables.difference(this.variables)
-                        if all(v.delay > 0 for v in diff):
-                            print("# distance between:   ", this, "and")
-                            print("#                     ", other, "=", distance)
-                            this.variables += diff
-                            handled = True
-                            continue
-                if this.is_static():
-                    assert not other.is_static()
-                    distance = other.variables.distance(this.variables)
-                    assert distance is None or distance > 0
-                    if distance == 1:
-                        diff = this.variables.difference(other.variables)
-                        if all(v.delay > 0 for v in diff):
-                            print("# distance between /: ", other, "and")
-                            print("#                     ", this, "=", distance)
-                            this.assign_to(other)
-                            this.variables += diff
-                            handled = True
-                        continue
-            if handled: continue
-
-            print("# appending term:     ", other)
-            new_functions.append(other)
-
-        for function in new_functions:
-            self.append(function.simplified())
+            function.append_coefficient(variable)
+        return self

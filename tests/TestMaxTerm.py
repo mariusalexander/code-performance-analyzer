@@ -1,17 +1,17 @@
-
+import copy
 from typing import List, Self
 
 from src.Common import PrintDisabled
-from src.MaxPlusAlgebra import DelayVariable, MaxTerm, MaxFunction
+from src.MaxPlusAlgebra import DelayVariable, MaxTerm, MaxFunction, MaxFunctionList
 
-def term_simple():
+def test_term_simple():
     term = MaxTerm()
     term.append(DelayVariable("a", 3))
     term.append(DelayVariable("b", 2))
     term.append(DelayVariable("c", 1))
     return term
 
-def term_with_duplicates():
+def test_term_with_duplicates():
     term = MaxTerm()
     term.append(DelayVariable("a", 3))
     term.append(DelayVariable("b", 2))
@@ -23,7 +23,7 @@ def term_with_duplicates():
 
 def test_vectors():
     reference = {"a":3, "b":2, "c":1}
-    return (term_with_duplicates, reference), (term_simple, reference)
+    return (test_term_with_duplicates, reference), (test_term_simple, reference)
 
 ###############################################################################
 
@@ -55,24 +55,59 @@ def MaxFunction_is_covered_by():
     function1.append_static_var(DelayVariable("if", 2))
     function1.append_static_var(DelayVariable("pc", 2))
     function1.append_static_var(DelayVariable("id", 1))
-    function1.append_dynamic_var(DelayVariable("d1"))
-    function1.append_dynamic_var(DelayVariable("d2", 1))
-    function1.append_dynamic_var(DelayVariable("d3"))
+    function1.append_coefficient(DelayVariable("d1"))
+    function1.append_coefficient(DelayVariable("d2", 1))
+    function1.append_coefficient(DelayVariable("d3"))
 
     function2 = MaxFunction()
     function2.append_static_var(DelayVariable("if", 2))
     function2.append_static_var(DelayVariable("pc", 1))
     function2.append_static_var(DelayVariable("id", 1))
-    function2.append_dynamic_var(DelayVariable("d1", 2))
-    function2.append_dynamic_var(DelayVariable("d2"))
+    function2.append_coefficient(DelayVariable("d1", 2))
+    function2.append_coefficient(DelayVariable("d2"))
 
     assert function2.is_covered_by(function1), f"{function2} should be covered by {function1}"
 
-def tests():
-    MaxTerm_max_delay()
-    MaxTerm_plus()
-    MaxTerm_names()
-    MaxTerm_resolved()
+def MaxFunction_merge():
+    static = MaxFunction()
+    static.append_static_var(DelayVariable("X", 3))
+    static.append_static_var(DelayVariable("Y", 2))
+    static.append_static_var(DelayVariable("Z", 3))
+    static.append_static_var(DelayVariable("U", 0))
+    static_orig = copy.deepcopy(static)
 
-    MaxFunction_is_covered_by()
+    dynamic = MaxFunction()
+    dynamic.append_static_var(DelayVariable("X", 2))
+    dynamic.append_static_var(DelayVariable("Y", 1))
+    dynamic.append_static_var(DelayVariable("Z", 1))
+    dynamic.append_coefficient(DelayVariable("d1"))
+    dynamic_orig = copy.deepcopy(dynamic)
+
+    # 1. merging function with empty list should add function to list
+    functions = MaxFunctionList()
+    functions.merge(static)
+
+    reference = MaxFunctionList((static, ))
+    assert functions.merge(static) == reference, f"MaxFunctionList().merge({static}) should equal {reference}"
+
+    # 2. merging dyanmic function with static function should remove redundant terms from static function
+    referenceA = MaxFunction()
+    referenceA.append_static_var(DelayVariable("Z", 3))
+    referenceA.append_static_var(DelayVariable("U", 0))
+    referenceB = dynamic
+    reference = MaxFunctionList((referenceA, referenceB))
+
+    assert functions.merge(dynamic) == reference, f"MaxFunctionList([{static}]).merge({dynamic}) should equal {reference}"
+    
+    # 3. merging should create deep copies of the input function 
+    assert static == static_orig, f"MaxFunctionList().merge() should not alter input function!"
+    assert dynamic == dynamic_orig, f"MaxFunctionList().merge() should not alter input function!"
+
+def tests():
+    print("  > Testing 'MaxTerm':")
+    for test_function in MaxTerm_max_delay, MaxTerm_plus, MaxTerm_names, MaxTerm_resolved, \
+                         MaxFunction_is_covered_by, MaxFunction_merge:
+        print(f"   > executing {test_function.__name__}...")
+        test_function()
+    print("   > szccess!")
     return 0
