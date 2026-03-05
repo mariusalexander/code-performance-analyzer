@@ -132,7 +132,7 @@ class DelayAnalyzer:
             for function_name in delay_graph_variant.scheduling_functions:
                 print(f"  > Resolving delay graph of '{function_name}'")
                 Print.indent = 3
-                with Profile(f"   > took"):
+                with Profile(f"   >"):
                     delay_graph = delay_graph_variant.scheduling_functions[function_name]
 
                     num_instructions = sum(int("Enter" in node) for node in delay_graph.nodes())

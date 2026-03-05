@@ -164,7 +164,7 @@ def main():
                     .assume_fix_dynamic_delays(value=3) \
                     .assume_pc_available() \
                     .assume_perfect_pipeline() \
-                    .resolve()
+                    .resolve(estimate_cpi=True)
             exit(0)
         success = UnitTests.run()
         exit(success)

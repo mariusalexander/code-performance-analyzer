@@ -156,10 +156,11 @@ class DelayGraphTransformer:
 
         self.simplify = simplify
         model = DelayGraphModel()
-        # iterate over each variant
-        for block_variant in block_model.getAllVariants():
-            print(f" > Generating delay graph for '{block_variant.name}'")
-            model.variants[block_variant.name] = self.__generateDelayGraphForEachFunction(block_variant, block_descriptions)
+        with Profile(f"  >"):
+            # iterate over each variant
+            for block_variant in block_model.getAllVariants():
+                print(f" > Generating delay graph for '{block_variant.name}'")
+                model.variants[block_variant.name] = self.__generateDelayGraphForEachFunction(block_variant, block_descriptions)
         return model
 
     def __generateDelayGraphForEachFunction(self, block_variant:Variant, block_descriptions:List[InstructionBlockDescription]) -> 'DelayGraphVariant':
@@ -168,7 +169,7 @@ class DelayGraphTransformer:
         idx = 0
         for block_function in block_functions:
             print(f"  > Generating delay graph for '{block_function.name}'")
-            with Profile(f"  > took"):
+            with Profile(f"   >"):
                 variant.scheduling_functions[block_function.name] = self.__generateDelayGraphForFunction(block_variant, block_function, block_descriptions[idx])
             idx += 1
         return variant

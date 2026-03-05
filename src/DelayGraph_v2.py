@@ -140,11 +140,12 @@ class DelayGraphTransformer_v2:
         print("-- TRANSFORM: DELAY_GRAPH_MODEL_V2 --")
 
         model = DelayGraphModel_v2()
-        # iterate over each variant
-        for block_variant in block_model.getAllVariants():
-            print(f" > Generating delay graph for '{block_variant.name}'")
-            variant = self.__generateDelayGraphForEachFunction(block_variant, block_descriptions)
-            model.variants.append(variant)
+        with Profile(f"  >"):
+            # iterate over each variant
+            for block_variant in block_model.getAllVariants():
+                print(f" > Generating delay graph for '{block_variant.name}'")
+                variant = self.__generateDelayGraphForEachFunction(block_variant, block_descriptions)
+                model.variants.append(variant)
         return model
 
     def __generateDelayGraphForEachFunction(self, block_variant:Variant, block_descriptions:List[InstructionBlockDescription]) -> 'DelayGraphVariant':
@@ -153,7 +154,7 @@ class DelayGraphTransformer_v2:
         idx = 0
         for block_function in block_functions:
             print(f"  > Generating delay graph for '{block_function.name}'")
-            with Profile(f"  > took"):
+            with Profile(f"   >"):
                 graph = self.__generateDelayGraphForFunction(block_variant, block_function, block_descriptions[idx])
                 variant.scheduling_functions.append(graph)
             idx += 1
@@ -192,7 +193,6 @@ class DelayGraphTransformer_v2:
             print(f"   > outputs:")
             for name, output in graph.outputs().items():
                 self.print_function(name, output, indent=4)
-            print(graph.code_block)
 
         return graph
 

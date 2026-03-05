@@ -113,7 +113,7 @@ class DelayNxGraphTransformer:
         idx = 0
         for block_function in block_functions:
             print(f"  > Generating delay graph for '{block_function.name}'")
-            with Profile(f"  > took"):
+            with Profile(f"   >"):
                 variant.scheduling_functions[block_function.name] = self.__generateDelayGraphForFunction(block_variant, block_function, block_descriptions[idx])
             idx += 1
         return variant

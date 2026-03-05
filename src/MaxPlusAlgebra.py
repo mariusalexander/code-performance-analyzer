@@ -15,7 +15,16 @@ class DelayVariable:
         return self.__str__()
 
     def added(self, delay:int) -> 'DelayVariable':
+        """
+        Returns a copy with the added delay.
+        """
         return DelayVariable(self.name, self.delay + delay)
+
+    def copy(self) -> Self:
+        """
+        Returns a copy of this variable.
+        """
+        return DelayVariable(self.name, self.delay)
 
 class BaseTerm:
     """ Represents a abstract term, a list of variables. How these variables relate must be defined in the derived classes. """
@@ -83,7 +92,7 @@ class BaseTerm:
         """
         Returns a copy of this term.
         """
-        return self.__class__(v.added(0) for v in self)
+        return self.__class__(v.copy() for v in self)
 
 class MaxTerm(BaseTerm):
     """ 
@@ -206,8 +215,8 @@ class MaxTerm(BaseTerm):
         """
         if len(intermediates) == 0:
             return self.simplified()
-        expanded = MaxTerm(chain((i.added(v.delay) for v in self if v.name in intermediates for i in intermediates[v.name]), \
-                                 (v                for v in self if v.name not in intermediates)))
+        expanded = MaxTerm(chain((i.copy(v.delay) for v in self if v.name in intermediates for i in intermediates[v.name]), \
+                                 (v               for v in self if v.name not in intermediates)))
         assert all(i.name not in intermediates for i in expanded)
         return expanded.simplified()
 

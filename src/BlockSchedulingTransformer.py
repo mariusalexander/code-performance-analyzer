@@ -53,20 +53,21 @@ class BlockSchedulingTransformer:
         blockSchedulingModel = SchedulingModel()
 
         # iterate over each variant
-        for sched_variant in sched_model.getAllVariants():
-            print(f" > Generating block scheduling model for '{sched_variant.name}'")
+        with Profile(f"  >"):
+            for sched_variant in sched_model.getAllVariants():
+                print(f" > Generating block scheduling model for '{sched_variant.name}'")
 
-            block_variant = blockSchedulingModel.createVariant(sched_variant.name)
+                block_variant = blockSchedulingModel.createVariant(sched_variant.name)
 
-            # simply copy over timing variables and external models
-            block_variant.timingVariables = copy.deepcopy(sched_variant.timingVariables)
-            block_variant.externalModels  = copy.deepcopy(sched_variant.externalModels)
+                # simply copy over timing variables and external models
+                block_variant.timingVariables = copy.deepcopy(sched_variant.timingVariables)
+                block_variant.externalModels  = copy.deepcopy(sched_variant.externalModels)
 
-            # iterate over each BB
-            for block_desc in block_descriptions:
-                assert block_desc.has_valid_instructions()
-                with Profile(f"  > took"):
-                    self.__generateBlockSchedulingFunction(sched_variant, block_variant, block_desc)
+                # iterate over each BB
+                for block_desc in block_descriptions:
+                    assert block_desc.has_valid_instructions()
+                    with Profile(f"   >"):
+                        self.__generateBlockSchedulingFunction(sched_variant, block_variant, block_desc)
 
         return blockSchedulingModel
 
