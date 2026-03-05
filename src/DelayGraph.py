@@ -26,16 +26,18 @@ from src.MaxPlusAlgebra import DelayVariable, MaxTerm
 class DelayGraphModel:
 
     def __init__(self):
-        self.variants: Dict[str, 'DelayGraphVariant'] = {}
+        self.variants: List['DelayGraphVariant'] = []
 
 class DelayGraphVariant:
 
-    def __init__(self):
-        self.scheduling_functions: Dict[str, 'DelayGraph'] = {}
+    def __init__(self, name:str):
+        self.name = name
+        self.scheduling_functions: List['DelayGraph'] = []
 
 class DelayGraph:
 
-    def __init__(self, code_block:InstructionBlockDescription):
+    def __init__(self, name:str, code_block:InstructionBlockDescription):
+        self.name = name
         self.code_block = code_block
         # intermediate results, that can be reused by other nodes
         self._intermediates:Dict[str, 'MaxTerm'] = {}
@@ -50,8 +52,11 @@ class DelayGraph:
         # maps full node name to a simplified variable name
         self._variable_mapping:Dict[str, str] = {}
 
-    def nodes(self) -> List[str]:
-        return self._nodes.keys()
+    def nodes(self) -> Dict[str, 'MaxTerm']:
+        return self._nodes
+
+    def node(self, name:str) -> 'MaxTerm':
+        return self._nodes[name]
 
     def input_to_variable_name(self, input_name:str) -> str:
         try:
@@ -72,11 +77,11 @@ class DelayGraph:
         self.__verify(node, function, check_name=False)
         self._nodes[node] = function
 
-    def get_node(self, node:str) -> 'MaxTerm':
-        return self._nodes[node]
-
-    def outputs(self) -> List[str]:
-        return self._outputs.keys()
+    def outputs(self) -> Dict[str, 'MaxTerm']:
+        return self._outputs
+        
+    def output(self, name:str) -> 'MaxTerm':
+        return self._outputs[name]
 
     def set_output(self, variable_name:str, function:'MaxTerm', full_name:str = None) -> None:
         if full_name is not None:
@@ -84,14 +89,11 @@ class DelayGraph:
         self.__verify(variable_name, function)
         self._outputs[variable_name] = function
 
-    def get_output(self, node:str) -> 'MaxTerm':
-        return self._outputs[node]
-
     def intermediates(self) -> List[str]:
         return self._intermediates
 
-    def get_intermediate(self, variable_name:str) -> 'MaxTerm':
-        return self._intermediates[variable_name]
+    def intermediate(self, name:str) -> List[str]:
+        return self._intermediates[name]
 
     def register_intermediate(self, variable_name:str, function:'MaxTerm') -> None:
         self.__verify(variable_name, function)
@@ -101,7 +103,7 @@ class DelayGraph:
         assert replacement in self._intermediates, f"Unknown intermediate '{replacement}'!"
         del self._intermediates[variable_name]
         for name in self.nodes():
-            for var in self.get_node(name):
+            for var in self.node(name):
                 if var.name == variable_name:
                     var.name = replacement
                     if delay is not None:
@@ -117,9 +119,6 @@ class DelayGraph:
 
     def dynamic_variables(self) -> List[str]:
         return self._dynamic_variables
-
-    def get_dynamic_variable(self, variable_name:str) -> 'MaxTerm':
-        return self._dynamic_variables[variable_name]
 
     def register_dynamic_variable(self, full_name:str, variable_name:str) -> None:
         self.register_input(full_name, variable_name)
@@ -160,22 +159,24 @@ class DelayGraphTransformer:
             # iterate over each variant
             for block_variant in block_model.getAllVariants():
                 print(f" > Generating delay graph for '{block_variant.name}'")
-                model.variants[block_variant.name] = self.__generateDelayGraphForEachFunction(block_variant, block_descriptions)
+                variant = self.__generateDelayGraphForEachFunction(block_variant, block_descriptions)
+                model.variants.append(variant)
         return model
 
     def __generateDelayGraphForEachFunction(self, block_variant:Variant, block_descriptions:List[InstructionBlockDescription]) -> 'DelayGraphVariant':
         block_functions = block_variant.getAllSchedulingFunctions()
-        variant = DelayGraphVariant()
+        variant = DelayGraphVariant(name=block_variant.name)
         idx = 0
         for block_function in block_functions:
             print(f"  > Generating delay graph for '{block_function.name}'")
             with Profile(f"   >"):
-                variant.scheduling_functions[block_function.name] = self.__generateDelayGraphForFunction(block_variant, block_function, block_descriptions[idx])
+                graph = self.__generateDelayGraphForFunction(block_variant, block_function, block_descriptions[idx])
+                variant.scheduling_functions.append(graph)
             idx += 1
         return variant
 
     def __generateDelayGraphForFunction(self, block_variant:Variant, block_function:SchedulingFunction, block_description:InstructionBlockDescription):
-        graph = DelayGraph(code_block=block_description)
+        graph = DelayGraph(name=block_function.name, code_block=block_description)
 
         # find all root nodes
         queue = deque(n for n in block_function.getAllNodes() if len(n.getAllInNodes()) == 0)
@@ -210,8 +211,8 @@ class DelayGraphTransformer:
 
         if self.verbose:
             print(f"   > outputs:")
-            for output in graph.outputs():
-                self.print_function(output, graph.get_output(output), indent=4)
+            for name, output in graph.outputs().items():
+                self.print_function(name, output, indent=4)
 
         return graph
 
@@ -231,7 +232,7 @@ class DelayGraphTransformer:
             term.append(DelayVariable(variable, node.delay))
         # append in node to function
         for in_node in node.getAllInNodes():
-            for variable in graph.get_node(in_node.name):
+            for variable in graph.node(in_node.name):
                 term.append(variable.added(node.delay))
         # TODO: properly integrate dynamic delays (cannot be treated as input variables)
         # use name of node as unique resource delay
@@ -259,14 +260,14 @@ class DelayGraphTransformer:
         Creates an intermediate output for the function of the current node, if no other intermediate covers this node.
         Otherwise, all references are updated.
         """
-        current_term = graph.get_node(node_name)
+        current_term = graph.node(node_name)
         expanded = current_term.expanded(graph.intermediates())
         new_term = MaxTerm(DelayVariable(intermediate))
 
         # check if term is covered by other intermediate
         best_match = expanded.find_best_intermediate(intermediates=graph.intermediates(), expand=False, allow_negative_distance=True)
         if best_match is not None and best_match.name not in current_term:
-            other_term = graph.get_intermediate(best_match.name)
+            other_term = graph.intermediate(best_match.name)
             if best_match.delay >= 0:
                 if self.verbose:
                     print(f"INFO: intermediate '{intermediate}' is a multiple of '{best_match.name}'! (distance: {best_match.delay})")

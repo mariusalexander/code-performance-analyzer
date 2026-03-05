@@ -59,25 +59,22 @@ class DelayGraphViewer:
         print()
         print("-- BACKEND: DELAY_GRAPH_VIEWER --")
 
-        for variant_name in delay_graph_model.variants:
-            variant = delay_graph_model.variants[variant_name]
+        for variant in delay_graph_model.variants:
 
             # Make sure output directories and temp directory exist
-            print(f" > Creating output directories for '{variant_name}'")
-            temp_dir = self._temp_dir / variant_name
+            print(f" > Creating output directories for '{variant.name}'")
+            temp_dir = self._temp_dir / variant.name
             dir_utils.createOrReplaceDir(temp_dir, suppress_warning=True)
-            variant_dir = out_dir / variant_name / "doc_delay"
+            variant_dir = out_dir / variant.name / "doc_delay"
 
             # Generate sub-dirs for each basic block function
-            for basic_block_name in variant.scheduling_functions:
-                assert basic_block_name
-                (variant_dir / basic_block_name).mkdir(parents=True, exist_ok=True)
+            for delay_graph in variant.scheduling_functions:
+                assert delay_graph.name
+                (variant_dir / delay_graph.name).mkdir(parents=True, exist_ok=True)
 
-                dot_graph = graphviz.Digraph(comment=basic_block_name)
+                dot_graph = graphviz.Digraph(comment=delay_graph.name)
                 dot_graph.attr(rankdir=self._direction)
                 dot_graph.attr(splines=self._edge_style, nodesep=str(self._horizontal_spacing), ranksep=str(self._vertical_spacing))
-
-                delay_graph = variant.scheduling_functions[basic_block_name]
 
                 output_names = delay_graph.outputs()
                 alias_names  = delay_graph.intermediates()
@@ -103,7 +100,7 @@ class DelayGraphViewer:
                     if not self.generate_unique_input_nodes:
                         for input_var in input_names:
                             for output in output_names:
-                                for var in delay_graph.get_output(output):
+                                for var in delay_graph.output(output):
                                     if var.name == input_var:
                                         generate_input_node(input_var, var.delay, prev_node)
                     else:
@@ -138,7 +135,7 @@ class DelayGraphViewer:
                 # connect outputs
                 for output_var in output_names:
                     node_name = self.__max(output_var)
-                    function  = delay_graph.get_output(output_var)
+                    function  = delay_graph.output(output_var)
                     if output_var not in alias_names:
                         # if output is made up of multiple edges -> create max node
                         if len(function) > 1:
@@ -171,18 +168,18 @@ class DelayGraphViewer:
                         subgraph.edge(self.__plus(var.name, var.delay), node_name)
                         edges[var.name].append(var.delay)
 
-                temp_file = temp_dir / f"{basic_block_name}.dot"
+                temp_file = temp_dir / f"{delay_graph.name}.dot"
                 with temp_file.open('w') as f:
                     f.write(dot_graph.source)
 
                 os.chdir(temp_dir)
-                os.system(f"dot -Tpdf {basic_block_name}.dot -o {basic_block_name}.pdf")
-                os.replace(f"{str(temp_dir)}/{basic_block_name}.pdf", f"{str(variant_dir / basic_block_name)}/{basic_block_name}_delay_graph.pdf")
+                os.system(f"dot -Tpdf {delay_graph.name}.dot -o {delay_graph.name}.pdf")
+                os.replace(f"{str(temp_dir)}/{delay_graph.name}.pdf", f"{str(variant_dir / delay_graph.name)}/{delay_graph.name}_delay_graph.pdf")
 
     def __generate_out_edges(self, subgraph, var_name, source_node_func, delay_graph, **kwargs):
         edges = []
         for output in delay_graph.outputs():
-            for var in delay_graph.get_output(output):
+            for var in delay_graph.output(output):
                 if var.name != var_name:
                     continue
                 if var.delay == 0:

@@ -215,8 +215,8 @@ class MaxTerm(BaseTerm):
         """
         if len(intermediates) == 0:
             return self.simplified()
-        expanded = MaxTerm(chain((i.copy(v.delay) for v in self if v.name in intermediates for i in intermediates[v.name]), \
-                                 (v               for v in self if v.name not in intermediates)))
+        expanded = MaxTerm(chain((i.added(v.delay) for v in self if v.name in intermediates for i in intermediates[v.name]), \
+                                 (v                for v in self if v.name not in intermediates)))
         assert all(i.name not in intermediates for i in expanded)
         return expanded.simplified()
 

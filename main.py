@@ -19,7 +19,6 @@ from src.DelayAnalyzer import DelayAnalyzer
 import tests.TestVectors as Examples
 import tests.UnitTests as UnitTests
 from src.DelayGraph_v2 import DelayGraphTransformer_v2
-from src.DelayAnalyzer_v2 import DelayAnalyzer_v2
 
 def main():
 
@@ -159,7 +158,7 @@ def main():
             block_schedule = BlockSchedulingTransformer(verbose=args.verbose).transform(schedule_model, descs)
             delay_model    = DelayGraphTransformer_v2(verbose=args.verbose).transform(block_schedule, descs)
             if args.cpi:
-                DelayAnalyzer_v2(struct_model, delay_model, verbose=args.verbose) \
+                DelayAnalyzer(struct_model, delay_model, verbose=args.verbose) \
                     .assume_registers_available() \
                     .assume_fix_dynamic_delays(value=3) \
                     .assume_pc_available() \
@@ -184,7 +183,7 @@ def main():
     if args.cpi:
         DelayAnalyzer(struct_model, delay_model, verbose=args.verbose) \
             .assume_registers_available() \
-            .assume_no_dynamic_delays() \
+            .assume_fix_dynamic_delays() \
             .assume_pc_available() \
             .assume_perfect_pipeline() \
             .resolve(estimate_cpi=True)

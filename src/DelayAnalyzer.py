@@ -17,7 +17,8 @@
 from meta_models.structural_model.StructuralModel import StructuralModel, Variant
 
 from src.Common import Profile, Print
-from src.DelayGraph import DelayGraphModel, DelayGraphVariant, DelayGraph, DelayVariable
+from src.DelayGraph import DelayGraphModel
+from src.MaxPlusAlgebra import DelayVariable
 
 class DelayAnalyzer:
 
@@ -25,11 +26,11 @@ class DelayAnalyzer:
         print()
         print("-- BACKENDS: DELAY_GRAPH_ANALYZER --")
         self.verbose = verbose
-        self.structural_model = structural_model
+        self.structural_model  = structural_model
         self.delay_graph_model = delay_graph_model
-        self.target_variable = DelayVariable("if")
-        self.mappings = { var_name:{} for var_name in self.delay_graph_model.variants }
-        self._zero = DelayVariable("zero")
+        self.mappings = { v.name:{} for v in self.delay_graph_model.variants }
+        self._zero = DelayVariable(name="")
+        self.target_variable = self._zero
 
     def assume_registers_available(self):
         """
@@ -38,55 +39,69 @@ class DelayAnalyzer:
         if self.verbose:
             print(f" > assuming all registers are available")
         for variant in self.delay_graph_model.variants:
-            mappings = self.mappings[variant]
-            self.mappings[variant] = mappings | { f"r{reg}":self._zero for reg in range(1, 32) }
+            mappings = self.mappings[variant.name]
+            self.mappings[variant.name] = mappings | { f"r{reg}":self._zero for reg in range(1, 32) }
         return self
 
-    def assume_no_dynamic_delays(self):
-        """
-        Replaces all dynamic delay with a zero delay -> dynamic delays have no effect and ignored.
-        """
-        # TODO: properly integrate dynamic delays (cannot be treated as input variables)
+    def assume_fix_dynamic_delays(self, value=1):
         if self.verbose:
             print(f" > assuming no dynamic delays")
+        assert value > 0, "dynamic delays must at least be equal to one"
         for variant in self.delay_graph_model.variants:
-            delay_graph_variant = self.delay_graph_model.variants[variant]
-            mappings = self.mappings[variant]
-            for function_name in delay_graph_variant.scheduling_functions:
-                delay_graph = delay_graph_variant.scheduling_functions[function_name]
-                for var in delay_graph.dynamic_variables():
-                    mappings[var] = self._zero
+            mappings = self.mappings[variant.name]
+            for delay_graph in variant.scheduling_functions:
+                for name in delay_graph.dynamic_variables():
+                    mappings[name] = self._zero.added(value)
         return self
 
     def assume_pc_available(self):
         """
-        Replaces all instances of pc with an equivalent instance of if.
+        Replaces all instances of pc with a zero delay.
         """
         if self.verbose:
-            print(f" > assuming: pc = if")
+            print(f" > assuming: pc = 0")
         for variant in self.delay_graph_model.variants:
-            # TODO: check that 'self.target_variable.name' exists in variables
-            self.mappings[variant]["pc"] = self.target_variable
+            pcs = []
+            for delay_graph in variant.scheduling_functions:
+                pcs += [name for name in delay_graph.inputs() if "pc" in name.lower() and name not in pcs]
+            assert "pc" in pcs
+            if len(pcs) > 1:
+                print("  > WARNING: found multiple inputs which could map to 'pc':", pcs)
+            self.mappings[variant.name]["pc"] = self.target_variable
         return self
 
     def assume_perfect_pipeline(self):
         printed = []
+        idx = -1
         for structural_variant in self.structural_model.getAllVariants():
+            idx += 1
             mappings = self.mappings[structural_variant.name]
-            delay_graph_variant = self.delay_graph_model.variants[structural_variant.name]
-
+            variant  = self.delay_graph_model.variants[idx]
+            assert variant.name == structural_variant.name
+            
+            timing_variables = {}
             pipeline = structural_variant.getPipeline()
-            stages = pipeline.getFirstStages()
-            for function_name in delay_graph_variant.scheduling_functions:
-                delay_graph = delay_graph_variant.scheduling_functions[function_name]
+            stages   = pipeline.getFirstStages()
+            for delay_graph in variant.scheduling_functions:
                 while stages:
                     next_stages = []
                     for stage in stages:
                         assert stage.capacity == 1
                         timing_variable = stage.name
-                        variable_name = delay_graph.input_to_variable_name(timing_variable)
+                        variable_name   = delay_graph.input_to_variable_name(timing_variable)
                         if variable_name is None: # timing variable not used
                             continue
+                        # first timing varialbe maps to target variable
+                        if len(timing_variables) == 0:
+                            variable = self.target_variable
+                            mappings[variable_name] = variable
+                        # replace timing varialbe with previous variable name
+                        elif variable_name in mappings:
+                            variable = mappings[variable_name]
+                        else:
+                            variable = DelayVariable(variable_name)
+                        timing_variables[f"o_{variable_name}"] = variable.copy()
+                        variable = variable.added(1)
                         # link all succeeding timing variables to the current timing variable
                         next_stages += pipeline.getNextStages(stage)
                         for next_stage in pipeline.getNextStages(stage):
@@ -97,59 +112,50 @@ class DelayAnalyzer:
                                 continue
                             if next_variable_name not in printed:
                                 if self.verbose:
-                                    print(f" > assuming {next_variable_name} = 1 + {variable_name}")
+                                    print(f" > assuming {next_variable_name}: = {variable}")
                                 printed.append(next_variable_name)
-                            mappings[next_variable_name] = DelayVariable(variable_name, 1)
+                            mappings[next_variable_name] = variable
                             if next_stage not in next_stages:
                                 next_stages.append(next_stage)
                     stages = next_stages
                 break
+            mappings["timing_variables"] = timing_variables
         return self
 
     def resolve(self, estimate_cpi=False):
         """
         Attempts to simplify all scheduling functions according to assumptions set prior to calling this function.
         """
-        # TODO: determine dynamically from structural model
-        relationships = {
-            "o_pc_np" : self.target_variable.added(0), # branch prediction
-            "o_if"    : self.target_variable.added(0),
-            "o_id"    : self.target_variable.added(1),
-            "o_ex"    : self.target_variable.added(2),
-            "o_mem"   : self.target_variable.added(3),
-            "o_wb"    : self.target_variable.added(4)
-        }
-        # TODO: allow defining input vector
-        initial_value = self.target_variable.added(0)
+        printed = not self.verbose
+        for variant in self.delay_graph_model.variants:
+            print(f" > Resolving delay graph for '{variant.name}'")
+            mappings = self.mappings[variant.name]
+            relationships = mappings["timing_variables"]
 
-        for variant_name in self.delay_graph_model.variants:
+            if not printed:
+                printed = True
+                mapping = self.mappings[variant.name]
+                print(variant.name, "mapping: {\n ", ",\n  ".join(f"{v:>5}:{str(mapping[v]):>6}" for v in mapping), "\n}")
 
-            print(f" > Resolving delay graph for '{variant_name}'")
-
-            delay_graph_variant = self.delay_graph_model.variants[variant_name]
-            mappings = self.mappings[variant_name]
-
-            for function_name in delay_graph_variant.scheduling_functions:
-                print(f"  > Resolving delay graph of '{function_name}'")
+            for delay_graph in variant.scheduling_functions:
+                print(f"  > Resolving delay graph of '{delay_graph.name}'")
                 Print.indent = 3
                 with Profile(f"   >"):
-                    delay_graph = delay_graph_variant.scheduling_functions[function_name]
-
                     num_instructions = sum(int("Enter" in node) for node in delay_graph.nodes())
                     estimations = []
 
-                    for output_name in delay_graph.outputs():
-                        output = delay_graph.get_output(output_name)
-                        output = output.expanded(delay_graph.intermediates())
-                        before = output
-                        for i in range(0, len(mappings)):
-                            for mapping in mappings:
-                                output = output.replaced(mapping, mappings[mapping])
+                    for output_name, output in delay_graph.outputs().items():
+                        if hasattr(delay_graph, "intermediates"):
+                            output = output.expanded(delay_graph.intermediates())
+                        if self.verbose:
+                            before = output
+                        for mapping in mappings:
+                            output = output.replaced(mapping, mappings[mapping])
+                        output = output.simplified()
                         output = output.resolved(self._zero.name)
-                        output = output.replaced(self.target_variable.name, initial_value)
                         if self.verbose:
                             print(f"   > Resolved {output_name.ljust(10)} :  {before}\t \n" + \
-                                  f"              {"".ljust(10)} => {output}")
+                                f"              {"".ljust(10)} => {output}")
                         if estimate_cpi and output_name in relationships:
                             relation = relationships[output_name]
                             estimations.append(DelayVariable(output_name, output.max_delay(relation.name)))
@@ -158,8 +164,9 @@ class DelayAnalyzer:
                         estimations.sort(key=lambda e: tuple(relationships.keys()).index(e.name))
                         # choose the variable with biggest change in its delay
                         max_val = max(estimations, key=lambda v: (v.delay - relationships[v.name].delay))
-                        max_val.delay -= initial_value.delay
-                        print(f"core={variant_name} \tbb={function_name} \tCPI = {f"{max_val.delay}/{num_instructions}":<10} = {(max_val.delay / num_instructions):.3f} \t({max_val.name})")
-                        print(f"   > max({", ".join([f"{e}" for e in estimations])})")
-                        print( "   >", delay_graph.code_block)
+                        print(f"   > core={variant.name} \tbb={output_name} \tCPI = {f"{max_val.delay}/{num_instructions}":<10} = {(max_val.delay / num_instructions):.3f} \t({max_val.name})")
+                        if self.verbose:
+                            print(f"   > max({", ".join([f"{e}" for e in estimations])})")
+                            print( "   >", delay_graph.code_block)
+                print()
             print()
