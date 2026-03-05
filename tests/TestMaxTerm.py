@@ -2,7 +2,7 @@ import copy
 from typing import List, Self
 
 from src.Common import PrintDisabled
-from src.MaxPlusAlgebra import DelayVariable, MaxTerm, MaxFunction, MaxFunctionList
+from src.MaxPlusAlgebra import DelayVariable, MaxTerm, DelayFunction, DelayFunctionList
 
 def test_term_simple():
     term = MaxTerm()
@@ -50,33 +50,65 @@ def MaxTerm_resolved():
         term = term.resolved("a")
         assert all(term.max_delay(v.name) == reference["a"] for v in term), f"resolving {term} should yield {reference["a"]}"
 
+def MaxFunction_plus():
+    reference = {"a":3, "b":2, "c":1}
+
+    function = DelayFunction()
+    function.append_static_var(DelayVariable("a", 3))
+    function.append_static_var(DelayVariable("b", 2))
+    function.append_static_var(DelayVariable("c", 1))
+    function.plus(1)
+    assert all(function.max_delay(v.name) == (reference[v.name] + 1) for v in function.iter_static_vars()), f"function {function} should equal {reference} + 1"
+
+    function.append_coefficient(DelayVariable("d1", 0))
+    function.plus(1)
+    assert all(function.max_delay(v.name) == (reference[v.name] + 2) for v in function.iter_static_vars()), f"function {function} should equal {reference} + 1"
+
+    function.append_coefficient(DelayVariable("d2", 2))
+    function.plus(1)
+    assert all(function.max_delay(v.name) == (reference[v.name] + 3) for v in function.iter_static_vars()), f"function {function} should equal {reference} + 1"
+
+
 def MaxFunction_is_covered_by():
-    function1 = MaxFunction()
+    # 1.
+    function1 = DelayFunction()
     function1.append_static_var(DelayVariable("if", 2))
     function1.append_static_var(DelayVariable("pc", 2))
     function1.append_static_var(DelayVariable("id", 1))
-    function1.append_coefficient(DelayVariable("d1"))
-    function1.append_coefficient(DelayVariable("d2", 1))
-    function1.append_coefficient(DelayVariable("d3"))
+    function1.append_coefficient(DelayVariable("d1", 1))
+    function1.append_coefficient(DelayVariable("d2", 2))
+    function1.append_coefficient(DelayVariable("d3", 1))
 
-    function2 = MaxFunction()
+    function2 = DelayFunction()
     function2.append_static_var(DelayVariable("if", 2))
     function2.append_static_var(DelayVariable("pc", 1))
     function2.append_static_var(DelayVariable("id", 1))
     function2.append_coefficient(DelayVariable("d1", 2))
-    function2.append_coefficient(DelayVariable("d2"))
+    function2.append_coefficient(DelayVariable("d2", 1))
+
+    assert function2.is_covered_by(function1), f"{function2} should be covered by {function1}"
+
+    # 2.
+    function1 = DelayFunction()
+    function1.append_static_var(DelayVariable("if", 2))
+    function1.append_coefficient(DelayVariable("d1", 2))
+    function1.append_coefficient(DelayVariable("d2", 1))
+
+    function2 = DelayFunction()
+    function2.append_static_var(DelayVariable("if", 4))
+    function2.append_coefficient(DelayVariable("d1", 1))
 
     assert function2.is_covered_by(function1), f"{function2} should be covered by {function1}"
 
 def MaxFunction_merge():
-    static = MaxFunction()
+    static = DelayFunction()
     static.append_static_var(DelayVariable("X", 3))
     static.append_static_var(DelayVariable("Y", 2))
     static.append_static_var(DelayVariable("Z", 3))
     static.append_static_var(DelayVariable("U", 0))
     static_orig = copy.deepcopy(static)
 
-    dynamic = MaxFunction()
+    dynamic = DelayFunction()
     dynamic.append_static_var(DelayVariable("X", 2))
     dynamic.append_static_var(DelayVariable("Y", 1))
     dynamic.append_static_var(DelayVariable("Z", 1))
@@ -84,30 +116,40 @@ def MaxFunction_merge():
     dynamic_orig = copy.deepcopy(dynamic)
 
     # 1. merging function with empty list should add function to list
-    functions = MaxFunctionList()
+    functions = DelayFunctionList()
     functions.merge(static)
 
-    reference = MaxFunctionList((static, ))
-    assert functions.merge(static) == reference, f"MaxFunctionList().merge({static}) should equal {reference}"
+    reference = DelayFunctionList((static, ))
+    assert functions == reference, f"DelayFunctionList().merge({static}) should equal {reference}"
 
     # 2. merging dyanmic function with static function should remove redundant terms from static function
-    referenceA = MaxFunction()
-    referenceA.append_static_var(DelayVariable("Z", 3))
-    referenceA.append_static_var(DelayVariable("U", 0))
-    referenceB = dynamic
-    reference = MaxFunctionList((referenceA, referenceB))
+    reference = DelayFunction()
+    reference.append_static_var(DelayVariable("Z", 3))
+    reference.append_static_var(DelayVariable("U", 0))
+    reference = DelayFunctionList((reference, dynamic))
 
-    assert functions.merge(dynamic) == reference, f"MaxFunctionList([{static}]).merge({dynamic}) should equal {reference}"
+    assert functions.merge(dynamic) == reference, f"DelayFunctionList([{static}]).merge({dynamic}) should equal {reference}"
     
     # 3. merging should create deep copies of the input function 
-    assert static == static_orig, f"MaxFunctionList().merge() should not alter input function!"
-    assert dynamic == dynamic_orig, f"MaxFunctionList().merge() should not alter input function!"
+    assert static == static_orig, f"DelayFunctionList().merge() should not alter input function!"
+    assert dynamic == dynamic_orig, f"DelayFunctionList().merge() should not alter input function!"
+
+def MaxFunction_resolved():
+    function = DelayFunction()
+    function.append_static_var(DelayVariable("X", 3))
+    function.append_static_var(DelayVariable("Y", 3))
+    function = function.resolved("X")
+    assert function.max_delay("Y") == 3, f"{function.max_delay("Y")} != 3"
+    
+    function.append_coefficient(DelayVariable("X", 2))
+    function = function.resolved("X")
+    assert function.max_delay("Y") == 5, f"{function.max_delay("Y")} != 5"
 
 def tests():
     print("  > Testing 'MaxTerm':")
     for test_function in MaxTerm_max_delay, MaxTerm_plus, MaxTerm_names, MaxTerm_resolved, \
-                         MaxFunction_is_covered_by, MaxFunction_merge:
+                         MaxFunction_plus, MaxFunction_is_covered_by, MaxFunction_merge, MaxFunction_resolved:
         print(f"   > executing {test_function.__name__}...")
         test_function()
-    print("   > szccess!")
+    print("   > success!")
     return 0

@@ -184,7 +184,7 @@ class DelayGraphTransformer:
 
             # create max term, discarding redundant variables
             function = self.__get_inputs(node, graph)
-            function = function.repacked(graph.intermediates())
+            function = function.repacked(graph.intermediates()).sort()
 
             # store function of current node
             graph.set_node(node.name, function)
@@ -231,7 +231,7 @@ class DelayGraphTransformer:
         # append in node to function
         for in_node in node.getAllInNodes():
             for variable in graph.get_node(in_node.name):
-                term.append(variable.merged(node.delay))
+                term.append(variable.added(node.delay))
         # TODO: properly integrate dynamic delays (cannot be treated as input variables)
         # use name of node as unique resource delay
         if node.resourceModel:
@@ -280,7 +280,7 @@ class DelayGraphTransformer:
                 assert len(other_term) == len(expanded)
                 best_match.delay *= -1
                 new_term = MaxTerm(DelayVariable(intermediate, 0))
-                out_term = new_term.simplified().plus(best_match.delay)
+                out_term = MaxTerm(DelayVariable(intermediate, best_match.delay))
                 # update old output
                 graph.set_output(best_match.name, out_term)
                 graph.register_intermediate(intermediate, expanded)
