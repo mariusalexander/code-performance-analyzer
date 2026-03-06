@@ -82,8 +82,8 @@ class InstructionBlockDescription:
     def parse_stringlist(raw_instructions:List['str'], name:str, address_start:int) -> 'InstructionBlockDescription':
         desc = InstructionBlockDescription(name, address_start)
         for raw_instructions in raw_instructions:
-            instr_name = re.search("\s[a-z]+\s", raw_instructions).group().strip()
-            registers  = re.findall("([a-z][a-z0-9]+)=(\d+)", raw_instructions)
+            instr_name = re.search(r"\s([a-z][a-z0-9]*?)+\s", raw_instructions).group().strip()
+            registers  = re.findall(r"([a-z][a-z0-9]+)=(\d+)", raw_instructions)
             registers  = { r[0]:int(r[1]) for r in registers }
             desc.addInstruction(instr_name, **registers)
         return desc

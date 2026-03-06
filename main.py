@@ -130,7 +130,7 @@ def main():
                 print("   >", desc)
                 descs.append(desc)
 
-        block_schedule, delay_model = UnitTests.generate_models(schedule_model, decs, verbose=args.verbose, simplify=args.simplify)
+        block_schedule, delay_model = UnitTests.generate_models(schedule_model, descs, verbose=args.verbose, simplify=args.simplify)
     # load example code blocks
     elif args.examples:
         descs = Examples.test_vectors(pattern=args.examples)

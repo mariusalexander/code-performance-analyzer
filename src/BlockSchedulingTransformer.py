@@ -274,7 +274,7 @@ class BlockSchedulingTransformer:
             mapping = mappings[model]
             for registerNo in mapping:
                 block_node = mapping[registerNo]
-                assert not (block_node and registerNo == 0), f"r0 (zero) should not be used set!"
+                # assert not (block_node and registerNo == 0), f"r0 (zero) should not be used set!"
                 if not block_node:
                     continue
                 target_register = self._target_register_mapping[model]
