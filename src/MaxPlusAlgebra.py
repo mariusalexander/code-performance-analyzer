@@ -1,6 +1,8 @@
 from itertools import chain
 from typing import List, Dict, Optional, Self
 
+from src.Common import Print
+
 class DelayVariable:
     """ Represents a variable in a max term, associated with an added delay. """
 
@@ -281,7 +283,7 @@ class PlusTerm(BaseTerm):
         super().__init__(iterable_or_arg)
 
     def __str__(self) -> str:
-        return f"{" + ".join(f"{v.delay}{v.name}" for v in self)}"
+        return f"{" + ".join(f"{v.delay}*{v.name}" for v in self)}"
 
     def __eq__(self, other) -> bool:
         """ 
@@ -413,7 +415,7 @@ class DelayFunction:
         offset = self.coefficients.count(variable_name)
         if delay is not None:
             if offset is None:
-                offset = 0
+                return delay
             return delay + offset
         return offset
 
@@ -496,7 +498,7 @@ class DelayFunctionList(list):
         super().__init__(iterable if iterable is not None else [])
 
     def __str__(self) -> str:
-        return f"max({", ".join(str(f) for f in self)})"
+        return f"max(" + (f",\n" + " " * Print.indent).join(str(f) for f in self) + ")"
 
     def __repr__(self) -> str:
         return self.__str__()

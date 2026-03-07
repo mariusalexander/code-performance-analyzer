@@ -14,14 +14,17 @@
 # limitations under the License.
 #
 
-from typing import List, Dict
+import copy
+import fnmatch
+from itertools import chain
+from typing import List, Dict, Tuple
 from collections import deque
 
 from meta_models.scheduling_model.SchedulingModel import SchedulingModel, Variant, SchedulingFunction, Node, Edge
 
-from src.Common import Profile
+from src.Common import Profile, Print, PrintDisabled
 from src.InstructionBlockDescription import InstructionBlockDescription
-from src.MaxPlusAlgebra import DelayVariable, MaxTerm
+from src.MaxPlusAlgebra import DelayVariable, MaxTerm, DelayFunction, DelayFunctionList
 
 class DelayGraphModel:
 
@@ -39,23 +42,23 @@ class DelayGraph:
     def __init__(self, name:str, code_block:InstructionBlockDescription):
         self.name = name
         self.code_block = code_block
-        # intermediate results, that can be reused by other nodes
-        self._intermediates:Dict[str, 'MaxTerm'] = {}
         # outputs of the scheduling function (timing variables and connector models)
-        self._outputs:Dict[str, 'MaxTerm']       = {}
+        self._outputs:Dict[str, 'DelayFunctionList'] = {}
         # intermediate nodes (all nodes that are present in a scheduling function)
-        self._nodes:Dict[str, 'MaxTerm']         = {}
+        self._nodes:Dict[str, 'DelayFunctionList']   = {}
         # inputs of the scheduling function (initial timing variables and connector models)
         self._inputs:List[str] = []
         # inputs that have not a fixed but a dynamic delay (i.e. resource models)
         self._dynamic_variables:List[str] = []
+        # nodes that have a fixed delay, which can not be resolved yet
+        self._symbolic_variables:List[str] = []
         # maps full node name to a simplified variable name
         self._variable_mapping:Dict[str, str] = {}
 
-    def nodes(self) -> Dict[str, 'MaxTerm']:
+    def nodes(self) -> Dict[str, 'DelayFunctionList']:
         return self._nodes
 
-    def node(self, name:str) -> 'MaxTerm':
+    def node(self, name:str) -> 'DelayFunctionList':
         return self._nodes[name]
 
     def input_to_variable_name(self, input_name:str) -> str:
@@ -71,43 +74,23 @@ class DelayGraph:
         except KeyError:
             return None
 
-    def set_node(self, node:str, function:'MaxTerm'):
-        assert all(v.name in self._variable_mapping for v in function), \
-               f"Function contains unregistered variable names!"
-        self.__verify(node, function, check_name=False)
-        self._nodes[node] = function
+    def set_node(self, node:str, functions:'DelayFunctionList'):
+        for function in functions:
+            self.__verify(node, function, check_name=False)
+        self._nodes[node] = functions
 
-    def outputs(self) -> Dict[str, 'MaxTerm']:
+    def outputs(self) -> Dict[str, 'DelayFunctionList']:
         return self._outputs
         
-    def output(self, name:str) -> 'MaxTerm':
+    def output(self, name:str) -> 'DelayFunctionList':
         return self._outputs[name]
 
-    def set_output(self, variable_name:str, function:'MaxTerm', full_name:str = None) -> None:
+    def set_output(self, variable_name:str, functions:'DelayFunctionList', full_name:str = None) -> None:
         if full_name is not None:
             self.__register_variable(full_name, variable_name)
-        self.__verify(variable_name, function)
-        self._outputs[variable_name] = function
-
-    def intermediates(self) -> List[str]:
-        return self._intermediates
-
-    def intermediate(self, name:str) -> List[str]:
-        return self._intermediates[name]
-
-    def register_intermediate(self, variable_name:str, function:'MaxTerm') -> None:
-        self.__verify(variable_name, function)
-        self._intermediates[variable_name] = function
-
-    def replace_intermediate(self, variable_name:str, replacement:str, delay:int=None) -> None:
-        assert replacement in self._intermediates, f"Unknown intermediate '{replacement}'!"
-        del self._intermediates[variable_name]
-        for name in self.nodes():
-            for var in self.node(name):
-                if var.name == variable_name:
-                    var.name = replacement
-                    if delay is not None:
-                        var.delay += delay
+        for function in functions:
+            self.__verify(variable_name, function)
+        self._outputs[variable_name] = functions
 
     def inputs(self) -> List[str]:
         return self._inputs
@@ -121,30 +104,47 @@ class DelayGraph:
         return self._dynamic_variables
 
     def register_dynamic_variable(self, full_name:str, variable_name:str) -> None:
-        self.register_input(full_name, variable_name)
+        self.__register_variable(full_name, variable_name)
         if variable_name not in self._dynamic_variables:
+            print(" " * Print.indent + f"> registered dynamic variable '{variable_name}' ({full_name})")
             self._dynamic_variables.append(variable_name)
 
-    def __register_variable(self, full_name:str, variable_name:str) -> None:
-        if "Xa" not in full_name and "Xb" not in full_name:
+    def symbolic_variables(self) -> List[str]:
+        return self._symbolic_variables
+
+    def register_symbolic_variable(self, full_name:str, variable_name:str) -> None:
+        self.__register_variable(full_name, variable_name, ignore_duplicates=True)
+        if variable_name not in self._symbolic_variables:
+            print(" " * Print.indent + f"> registered symbolic variable '{variable_name}' ({full_name})")
+            self._symbolic_variables.append(variable_name)
+
+    def __register_variable(self, full_name:str, variable_name:str, ignore_duplicates=False) -> None:
+        if not ignore_duplicates and "Xa" not in full_name and "Xb" not in full_name:
             assert variable_name not in self._variable_mapping or self._variable_mapping[variable_name] == full_name, \
-                f"Generated duplicate variable name! ('{variable_name}' from '{full_name}' clashes with '{self._variable_mapping[variable_name]}')"
+                   f"Generated duplicate variable name! ('{variable_name}' from '{full_name}' clashes with '{self._variable_mapping[variable_name]}')"
         self._variable_mapping[variable_name] = full_name
 
     def __verify(self, variable_name:str, function:'MaxTerm', check_name=True) -> None:
+        assert all(v.name in self._variable_mapping for v in chain(function.iter_static_vars(), function.iter_coefficients())), \
+               f"Function of '{variable_name}' contains unregistered variable names!"
+        assert all(v.name in self._dynamic_variables or v.name in self._symbolic_variables for v in function.iter_coefficients()), \
+               f"Function of '{variable_name}' contains unregistered dynamic or symbolic variable names!"
         if check_name:
-            assert variable_name in self._variable_mapping, f"Unkown variable name '{variable_name}'!"
-        assert not any(v.delay < 0 for v in function), f"Term of '{variable_name}' contains negative cofactors!"
+            assert variable_name in self._variable_mapping, f"Unknown variable name '{variable_name}'!"
+        assert not any(v.delay < 0 for v in function.iter_static_vars()), \
+               f"Term of '{variable_name}' contains negative cofactors!"
+        assert not any(v.delay < 1 for v in function.iter_coefficients()), \
+               f"Term of '{variable_name}' contains invalid cofactors!"
 
 class DelayGraphTransformer:
     """Delay Graph"""
 
     def __init__(self, verbose=True):
         # whether to unroll all delay functions
-        self.simplify = True
-        self.verbose  = verbose
+        self.verbose       = verbose
+        self.symbolic_vars = []
 
-    def transform(self, block_model:SchedulingModel, block_descriptions:List[InstructionBlockDescription], simplify=True) -> 'DelayGraphModel':
+    def transform(self, block_model:SchedulingModel, block_descriptions:List[InstructionBlockDescription], symbolic_vars=[]) -> 'DelayGraphModel':
         """
         Transforms a (block) scheduling model into a delay graph.
         For each scheduling function a dict of its outputs and the respective delay functions (max term) is returned.
@@ -152,8 +152,8 @@ class DelayGraphTransformer:
         """
         print()
         print("-- TRANSFORM: DELAY_GRAPH_MODEL --")
+        self.symbolic_vars = symbolic_vars
 
-        self.simplify = simplify
         model = DelayGraphModel()
         with Profile(f"  >"):
             # iterate over each variant
@@ -185,21 +185,16 @@ class DelayGraphTransformer:
             assert node.name not in graph.nodes()
 
             # create max term, discarding redundant variables
-            function = self.__get_inputs(node, graph)
-            function = function.repacked(graph.intermediates()).sort()
+            functions = self.__get_inputs(node, graph)
+            functions.sort()
 
             # store function of current node
-            graph.set_node(node.name, function)
+            graph.set_node(node.name, functions)
             if self.verbose:
-                self.print_function(node.name, function, indent=3)
+                self.print_function(node.name, functions, indent=3)
 
             # set outputs if any
-            intermediate = self.__set_output(node, function, graph)
-
-            # create intermediate output if function is a max node (multiple input edges)
-            if self.simplify:
-                if intermediate is not None and len(function) > 1:
-                    self.__update_intermediates(node.name, intermediate, graph)
+            self.__set_output(node, functions, graph)
 
             # iterate over children if all dependencies have been met
             for next_node_i in node.getAllOutNodes():
@@ -216,82 +211,55 @@ class DelayGraphTransformer:
 
         return graph
 
-    def __get_inputs(self, node:Node, graph:'DelayGraph') -> 'MaxTerm':
+    def __get_inputs(self, node:Node, graph:'DelayGraph') -> List['DelayFunction']:
         """
         Accumulates all input variables for the given node.
         Returns a non-simplified term.
         """
-        term = MaxTerm()
-        # append in edges to function
+        functions = DelayFunctionList()
+
+        for in_node in node.getAllInNodes():
+            other_functions = graph.node(in_node.name)
+            for other_function in other_functions:
+                functions.merge(other_function)
+
         for in_edge in node.getAllInEdges():
             edge_name = self.__variable_name(in_edge)
             variable  = self.__simplify_variable_name(edge_name)
-            if variable == 'r0':
-                continue
             graph.register_input(edge_name, variable)
-            term.append(DelayVariable(variable, node.delay))
-        # append in node to function
-        for in_node in node.getAllInNodes():
-            for variable in graph.node(in_node.name):
-                term.append(variable.added(node.delay))
-        # TODO: properly integrate dynamic delays (cannot be treated as input variables)
-        # use name of node as unique resource delay
-        if node.resourceModel:
-            raise RuntimeError("Dynamic delays are currently not supported")
-        return term
+            functions.append_static_var(DelayVariable(variable))
+        
+        is_symbolic = any(name in node.name for name in self.symbolic_vars)
+        if is_symbolic:
+            variable = self.__simplify_variable_name(node.name)
+            # strip identifier in name, to which instruction the node belongs
+            variable = variable[0:variable.rindex('_')]
+            graph.register_symbolic_variable(node.name, variable)
+            functions.append_coefficient(DelayVariable(variable))
+        elif node.delay != 0:
+            functions.plus(node.delay)
 
-    def __set_output(self, node:Node, function:'MaxTerm', graph:'DelayGraph') -> str:
+        if node.resourceModel:
+            variable = self.__simplify_variable_name(node.name)
+            graph.register_dynamic_variable(node.name, variable)
+            functions.append_coefficient(DelayVariable(variable))
+
+        return functions
+
+    def __set_output(self, node:Node, functions:List['MaxTerm'], graph:'DelayGraph') -> str:
         """
         Sets the node's function to all outputs of this node.
         Yields the name of the last output that was set (if any)
         """
-        intermediate = None
+        output_name = None
         for edge in node.getAllOutEdges():
             edge_name = self.__variable_name(edge, prefix="o_")
-            variable = self.__simplify_variable_name(edge_name)
-            graph.set_output(variable, function, full_name=edge_name)
-            intermediate = variable
+            variable  = self.__simplify_variable_name(edge_name)
+            graph.set_output(variable, functions, full_name=edge_name)
+            output_name = variable
             if self.verbose:
-                print(" " * 23 + f"- sets '{intermediate}'")
-        return intermediate
-
-    def __update_intermediates(self, node_name:str, intermediate:str, graph:'DelayGraph') -> None:
-        """
-        Creates an intermediate output for the function of the current node, if no other intermediate covers this node.
-        Otherwise, all references are updated.
-        """
-        current_term = graph.node(node_name)
-        expanded = current_term.expanded(graph.intermediates())
-        new_term = MaxTerm(DelayVariable(intermediate))
-
-        # check if term is covered by other intermediate
-        best_match = expanded.find_best_intermediate(intermediates=graph.intermediates(), expand=False, allow_negative_distance=True)
-        if best_match is not None and best_match.name not in current_term:
-            other_term = graph.intermediate(best_match.name)
-            if best_match.delay >= 0:
-                if self.verbose:
-                    print(f"INFO: intermediate '{intermediate}' is a multiple of '{best_match.name}'! (distance: {best_match.delay})")
-                # link to other intermediate
-                new_term = MaxTerm(best_match)
-                assert len(other_term) == len(expanded), "Necessary to extend term by missing variables?"
-                expanded = new_term
-            else:
-                # other intermediate is a negative multiple of this term
-                if self.verbose:
-                    print(f"INFO: intermediate '{best_match.name}' is a negative multiple of '{intermediate}'! (distance: {best_match.delay})")
-                assert len(other_term) == len(expanded)
-                best_match.delay *= -1
-                new_term = MaxTerm(DelayVariable(intermediate, 0))
-                out_term = MaxTerm(DelayVariable(intermediate, best_match.delay))
-                # update old output
-                graph.set_output(best_match.name, out_term)
-                graph.register_intermediate(intermediate, expanded)
-                graph.replace_intermediate(best_match.name, intermediate, delay=best_match.delay)
-                graph.set_node(node_name, new_term)
-                return
-        # save new intermediate and update output of this node
-        graph.register_intermediate(intermediate, expanded)
-        graph.set_node(node_name, new_term)
+                print(" " * 23 + f"- sets '{output_name}'")
+        return output_name
 
     def __variable_name(self, edge:Edge, prefix:str=""):
         """
@@ -340,9 +308,13 @@ class DelayGraphTransformer:
         return f"\n{" " * (indent)}".join(lines)
 
     @staticmethod
-    def print_function(name:str, function:'MaxTerm', indent=0):
+    def print_function(name:str, functions:List['MaxTerm'], indent=0):
         """
         Prints the node and its function in a standardized manner. Used for stdout
         """
-        function_str = DelayGraphTransformer.function_to_str(function, indent=20 + 9)
-        print(f"{" " * indent}> {name.ljust(20 - indent)} = max{function_str}")
+        function_strs = tuple(DelayGraphTransformer.function_to_str(function, indent=20 + 9 + 4) for function in functions)
+        print(f"{" " * indent}> {name.ljust(20 - indent)} = max({function_strs[0] if len(function_strs) > 0 else '/'}{',' if len(function_strs) > 1 else ')'}")
+        if len(function_strs) > 1:
+            for function in function_strs[1:-1]:
+                print(f"{" " * 29}{function},")
+            print(f"{" " * 29}{function_strs[-1]})")

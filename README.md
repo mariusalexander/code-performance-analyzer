@@ -45,7 +45,7 @@ $ source venv/bin/activate
 
 ```
 $ PYTHONPATH=... python3 main.py <path/to/schedule.model> [<path/to/frontend.model>] 
-                                [-o OUT-DIR] [-v] [--cores PATTERN] [--tests [PATTERN]] [--simplify] 
+                                [-o OUT-DIR] [-v] [--examples [EXAMPLES]] [--tests [TESTS]] [--files FILES [FILES ...]]
                                 [--schedule-graph] [--delay-graph] [--cpi]
 ```
 
@@ -67,14 +67,15 @@ $ PYTHONPATH=... python3 main.py --help
 - `o` Override output path (defaults to `./out/`).
 - `v` Enable verbose output.
 - `--cores` Wildcard pattern matching the variants to use for further processing.
-- `--tests` Loads example code blocks. An optional Wildcard pattern can be used to load only certain code blocks.
-- `--simplify` Simplifies the generated delay graphs by sharing common delays.
+- `--examples` Loads example code blocks. An optional Wildcard pattern can be used to load only certain code blocks.
+- `--tests` Executes all unittests.
+- `--files` Parses code blocks from disk. Multiple input files can be specified.
 
 **Targets:**
 
 - `--schedule-graph` Generates schedule graphs similar to *M2-ISA-R-Perf* depicting the entire code block. Uses `-o` flag.
-- `--delay-graph` Generates delay graphs denoting the relationships between the timing inputs and outputs of a code block. Uses `-o` flag.
-- `cpi` Gives an estimation of the CPI by making various assumptions over the state of the pipeline and registers.
+- `--delay-graph` Generates delay graphs denoting the relationships between the timing inputs and outputs of a code block. Uses `-o` flag. (WIP)
+- `--cpi` Gives an estimation of the CPI by making various assumptions over the state of the pipeline and registers.
 
 
 ### Examples:

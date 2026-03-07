@@ -40,7 +40,7 @@ class DelayAnalyzer:
             print(f" > assuming all registers are available")
         for variant in self.delay_graph_model.variants:
             mappings = self.mappings[variant.name]
-            self.mappings[variant.name] = mappings | { f"r{reg}":self._zero for reg in range(1, 32) }
+            self.mappings[variant.name] = mappings | { f"r{reg}":self._zero for reg in range(0, 32) }
         return self
 
     def assume_fix_dynamic_delays(self, value=1):
@@ -154,8 +154,11 @@ class DelayAnalyzer:
                         output = output.simplified()
                         output = output.resolved(self._zero.name)
                         if self.verbose:
+                            restore = Print.indent
+                            Print.indent = 32
                             print(f"   > Resolved {output_name.ljust(10)} :  {before}\t \n" + \
-                                f"              {"".ljust(10)} => {output}")
+                                  f"              {"".ljust(10)} => {output}")
+                            Print.indent = restore
                         if estimate_cpi and output_name in relationships:
                             relation = relationships[output_name]
                             estimations.append(DelayVariable(output_name, output.max_delay(relation.name)))

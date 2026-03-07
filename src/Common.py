@@ -2,6 +2,13 @@ import os
 import sys
 import time
 
+# The pc_np path has no effect if branch prediction predicts correctly.
+def twos_complement(val, bits):
+    """ compute the 2's complement of int value """
+    if (val & (1 << (bits - 1))) != 0: # if sign bit is set e.g., 8bit: 128-255
+        val = val - (1 << bits)        # compute negative value
+    return val                         # return positive value as is
+
 # wrapper to support dot-notation on dictionaries
 # (see https://stackoverflow.com/questions/2352181/how-to-use-a-dot-to-access-members-of-dictionary)
 class dotdict(dict):

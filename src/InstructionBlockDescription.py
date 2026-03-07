@@ -34,7 +34,7 @@ class InstructionDescription(dotdict):
         return string
         
     def __str__(self) -> str:
-        return f"{hex(self.address)} {self.name:<4}{self.registers_to_str()}"
+        return f"{hex(self.address)} {self.name:>8}{self.registers_to_str()}"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -54,8 +54,9 @@ class InstructionBlockDescription:
     def __repr__(self) -> str:
         return self.__str__()
 
-    def addInstruction(self, instr_name, rd=None, rs1=None, rs2=None, imm=None, **kwargs):
-        address = self.starting_address + (4 * len(self.instructions))
+    def addInstruction(self, instr_name, rd=None, rs1=None, rs2=None, imm=None, address=None, **kwargs):
+        if address is None:
+            address = self.starting_address + (4 * len(self.instructions))
         instr = InstructionDescription(address, instr_name, rd=rd, rs1=rs1, rs2=rs2, imm=imm)
         for register in (arg for arg in kwargs if arg not in _ignored_registers_):
             print(f"{" " * Print.indent}> WARNING: ignoring all occurrences of register '{register}' " + \
@@ -81,9 +82,18 @@ class InstructionBlockDescription:
     @staticmethod
     def parse_stringlist(raw_instructions:List['str'], name:str, address_start:int) -> 'InstructionBlockDescription':
         desc = InstructionBlockDescription(name, address_start)
+        printed = False
         for raw_instructions in raw_instructions:
+            if len(raw_instructions.strip()) == 0:
+                continue
+            address = re.search(r"0x[a-z0-9]{7}\s", raw_instructions)
+            if address:
+                address = int(address.group().strip(), 16)
+            elif not printed:
+                print(f"{" " * Print.indent}> WARNING: cannot determine pc of instruction (instr. idx = {len(desc.instructions)})")
+                printed = True
             instr_name = re.search(r"\s([a-z][a-z0-9]*?)+\s", raw_instructions).group().strip()
             registers  = re.findall(r"([a-z][a-z0-9]+)=(\d+)", raw_instructions)
             registers  = { r[0]:int(r[1]) for r in registers }
-            desc.addInstruction(instr_name, **registers)
+            desc.addInstruction(instr_name, address=address, **registers)
         return desc

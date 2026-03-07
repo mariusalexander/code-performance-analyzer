@@ -20,7 +20,7 @@ from typing import List, Dict
 
 from meta_models.scheduling_model.SchedulingModel import SchedulingModel, Variant, SchedulingFunction, Node, StaticEdge
 
-from src.Common import dotdict, Profile
+from src.Common import dotdict, Profile, twos_complement
 from src.InstructionBlockDescription import InstructionBlockDescription
 
 
@@ -31,7 +31,8 @@ class BlockSchedulingTransformer:
         self._id = 1024
         self.verbose = verbose
         # whether to use more descriptive names for edges to registers, like 'r2 (Xa)' instead of 'Xa'
-        self.rename_edges = True
+        self.rename_edges  = True
+        self.brpred_option = ""
         # TODO: infer these attributes dynamically from core perf dsl or the struct model
         self._register_count   = 32
         self._register_models  = ["regModel", "clobberModel"]
@@ -42,7 +43,7 @@ class BlockSchedulingTransformer:
         self._branch_prediction_models  = ["noBranchPredModel", "staBranchPredModel", "dynBranchPredModel"]
         self._supported_models = self._register_models + self._branch_prediction_models
 
-    def transform(self, sched_model:SchedulingModel, block_descriptions:List[InstructionBlockDescription]) -> SchedulingModel:
+    def transform(self, sched_model:SchedulingModel, block_descriptions:List[InstructionBlockDescription], brpred_option:str) -> SchedulingModel:
         """
         Transforms basic blocks (BB) into a block scheudling model.
         The model is a regular Scheduling Model which only contains a scheduling function for each BB.
@@ -50,8 +51,9 @@ class BlockSchedulingTransformer:
         print()
         print("-- TRANSFORM: BLOCK_SCHEDULING_MODEL --")
 
-        blockSchedulingModel = SchedulingModel()
+        self.brpred_option = brpred_option
 
+        blockSchedulingModel = SchedulingModel()
         # iterate over each variant
         with Profile(f" > Generating all block scheduling variants"):
             for sched_variant in sched_model.getAllVariants():
@@ -91,7 +93,7 @@ class BlockSchedulingTransformer:
         for reg_model in self._register_models:
             mappings[reg_model] = { reg:None for reg in range(0, self._register_count) }
         # mappings for branch prediction
-        # TODO: infer connectors automatically
+        # TODO: infer connector mapping automatically
         for pred_model in self._branch_prediction_models:
             mappings[pred_model] = { c:None for c in ["Pc", "Pc_p", "Pc_np"] }
 
@@ -287,6 +289,7 @@ class BlockSchedulingTransformer:
         instr = block_desc.instructions[block_idx]
         pred_model = mappings[model]
         last_node  = pred_model[edge.name]
+        # TODO: resolve hard coded logic
         assert edge.name == "Pc"
         if not last_node:
             if self.verbose:
@@ -300,26 +303,30 @@ class BlockSchedulingTransformer:
     def __resolveBranchPredictionOutEdge(self, block_node:Node, edge:StaticEdge, block_desc:InstructionBlockDescription, block_idx:int, mappings, model:str):
         instr = block_desc.instructions[block_idx]
         pred_model = mappings[model]
+        # TODO: resolve hard coded logic
         assert edge.name in ["Pc_p", "Pc_np"]
         if self.verbose:
             print(f"    > Resolved {model}: Node '{block_node.name}' sets 'Pc' ({edge.name})")
         if edge.name == "Pc_np":
-            # The pc_np path has no effect if branch prediction predicts correctly.
-            # TODO: Can we model more dynamic branch prediction?
-            if model != "noBranchPredModel":
+            if model == "dynBranchPredModel":
                 return
-            #def twos_comp(val, bits):
-            #    """compute the 2's complement of int value val"""
-            #    if (val & (1 << (bits - 1))) != 0: # if sign bit is set e.g., 8bit: 128-255
-            #        val = val - (1 << bits)        # compute negative value
-            #    return val                         # return positive value as is
-
-            #imm  = instr["imm"]
-            #assert imm is not None, f"branch instruction has no target (imm value is empty)! {instr}"
-            #comp = twos_comp(int(imm), 13)
-            #new_node = block_node.parentSchedulingFunction.createNode(f"{model}_{block_idx}")
-            #block_node.connectNode(new_node)
-            #block_node = new_node
+            if model == "staBranchPredModel":                
+                match self.brpred_option:
+                    # the pc_np path has no effect if branch prediction predicts correctly.
+                    case "sta_never_taken":
+                        imm = instr["imm"]
+                        assert imm is not None, f"branch instruction has no target (imm value is empty)! {instr}"
+                        target_pc = twos_complement(int(imm), 13)
+                        if target_pc == 0:
+                            return
+                        if block_idx + 1 < len(block_desc.instructions):
+                            next_pc = block_desc.instructions[block_idx + 1].address
+                            if (instr.address - next_pc) == 4:
+                                return
+                            assert next_pc == instr.address + target_pc
+                            print(f"   > INFO: adding control hazard: 'never taken' mispredicted (instr. idx {block_idx})")
+                    case _:
+                        return
         # pc_p and pc_np become the new pc inputs
         pred_model["Pc"]      = block_node
         pred_model[edge.name] = block_node
@@ -328,6 +335,7 @@ class BlockSchedulingTransformer:
         for model in self._branch_prediction_models:
             mapping = mappings[model]
             for connector in mapping:
+                # TODO: resolve hard coded logic
                 # pc path is input only
                 if connector == "Pc":
                     continue

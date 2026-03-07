@@ -1,25 +1,6 @@
 import tests.TestMaxTerm as TestMaxTerm
 
 from src.Common import PrintDisabled
-from src.BlockSchedulingTransformer import BlockSchedulingTransformer
-from src.DelayGraph import DelayGraphTransformer
-
-def generate_models(sched_model, code_blocks, verbose=False, simplify=False):
-    """ 
-    Generates a block scheduling model and a delay graph model. 
-    For the delay graph model it checks whether the simplified model matches the non simplified model
-    """
-    block_schedule = BlockSchedulingTransformer(verbose=verbose).transform(sched_model, code_blocks)
-    delay_model    = DelayGraphTransformer(verbose=verbose).transform(block_schedule, code_blocks, simplify=simplify)
-    with PrintDisabled():
-        delay_model_other = DelayGraphTransformer(verbose=False).transform(block_schedule, code_blocks, simplify=not simplify)
-
-    # both the simplified and non simplified models should be equal in their prediction
-    assert_equal(base_model =delay_model       if not simplify else delay_model_other, \
-                 other_model=delay_model_other if not simplify else delay_model)
-
-    return block_schedule, delay_model
-
 
 def assert_equal(base_model, other_model):
     """ Helper method to assert that two delay graph models are equal by comparing their expanded outputs. """

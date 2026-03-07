@@ -4,7 +4,6 @@ import pathlib
 import argparse
 import fnmatch
 import pickle
-import networkx as nx
 
 from backends.schedule_viewer.SchedulingModelViewer import SchedulingModelViewer
 
@@ -18,7 +17,6 @@ from src.DelayAnalyzer import DelayAnalyzer
 
 import tests.TestVectors as Examples
 import tests.UnitTests as UnitTests
-from src.DelayGraph_v2 import DelayGraphTransformer_v2
 
 def main():
 
@@ -33,6 +31,9 @@ def main():
         for var in model.variants:
             print(f"  > using variant '{var.name}'")
     
+    def valid_path(path):
+        return pathlib.Path(path).resolve()
+    
     # path to folder
     dirname = pathlib.Path(__file__).resolve().parent / "out"
 
@@ -42,19 +43,18 @@ def main():
     args_parser.add_argument("schedule_model"     , help="Path to the schedule model pickle file.")
     args_parser.add_argument("struct_model"       , nargs='?', help="Path to the structure model pickle file. Required for delay analysis.")
     # options
-    args_parser.add_argument("-o", "--out-dir"    , default=dirname, type=lambda o: pathlib.Path(o).resolve(), help="Directory to store generated files")
+    args_parser.add_argument("-o", "--out-dir"    , type=valid_path, default=dirname, help="Directory to store generated files")
     args_parser.add_argument("--cores"            , type=str, help="Filters out any core variants that do not match the given Wildcard pattern")
     args_parser.add_argument("-v", "--verbose"    , action="store_true", help="Enables verbose output.")
-    args_parser.add_argument("--simplify"         , action="store_true", help="Whether to simplify the generated delay graphs.")
-    args_parser.add_argument("--nx"               , action="store_true", help="Whether to use networkx graphs (WIP).")
     # inputs
-    args_parser.add_argument("--examples"         , nargs='?', type=str, const='*',  help="Loads example basic blocks. A Wildcard pattern can be used to load only certain tests.")
-    args_parser.add_argument("--tests"            , nargs='?', type=str, const='*',  help="Executes unit tests.")
-    args_parser.add_argument("--v2"               , action="store_true", help="Whether to use version 2 of models (WIP).")
-    args_parser.add_argument("--files"            , nargs='+', type=lambda o: pathlib.Path(o).resolve(), const=None, help="...")
+    args_parser.add_argument("--tests"            , action="store_true", help="Executes all unittests.")
+    args_parser.add_argument("--examples"         , nargs='?', type=str, const='*', help="Loads example basic blocks. A Wildcard pattern can be used to load only certain tests.")
+    args_parser.add_argument("--files"            , nargs='+', type=valid_path, const=None, help="Parses code blocks from disk. Multiple input files can be specified.")
+    args_parser.add_argument("--symbolic-vars"    , nargs=  1, type=str, default=[""], help="Comma separated list of keywords to find nodes whose delay should be made symbolic.")
+    args_parser.add_argument("--brpred"           , nargs=  1, type=str, default=None, help="...")
     # targets
     args_parser.add_argument("--schedule-graph"   , action="store_true", help="Generates schedule graphs for the generated instruction block schedules (writes to `out-dir`, uses M2-ISA-R-Perf internally)")
-    args_parser.add_argument("--delay-graph"      , action="store_true", help="Generates delay graphs for the selected instruction blocks (writes to `out-dir`).")
+    args_parser.add_argument("--delay-graph"      , action="store_true", help="Generates delay graphs for the selected instruction blocks (writes to `out-dir`). (WIP)")
     args_parser.add_argument("--cpi"              , action="store_true", help="Estimates the CPI for each instruction block (prints to stdout).")
     args = args_parser.parse_args()
 
@@ -63,10 +63,12 @@ def main():
 
     ### initializations ###
     print("-- INITIALIZING --")
-    print(args)
-    schedule_model = struct_model = None
+    print(" > Arguments:\n  >" + ",\n  > ".join(f"'{f}': {args.__getattribute__(f)}" for f in vars(args)))
 
+    # parse arguments
+    schedule_model = struct_model = None
     model_path = pathlib.Path(args.schedule_model).resolve()
+
     if model_path.is_dir():
         print(" > Attemping to load default models...")
         if args.struct_model:
@@ -80,6 +82,17 @@ def main():
 
     if sum(bool(arg) for arg in (args.files, args.tests, args.examples)) > 1:
         args_parser.error(f"Conflicting arguments: either use --files, --examples, or --tests!")
+
+    args.symbolic_vars = list(filter(lambda arg: len(arg) > 0, (arg.strip() for arg in args.symbolic_vars[0].split(","))))
+    #args.symbolic_vars = list(arg         for arg in args.symbolic_vars if len(arg) > 0)
+
+    if args.brpred:
+        [args.brpred] = args.brpred
+        match args.brpred:
+            case "sta_never_taken":
+                pass
+            case _:
+                args_parser.error(f"Unknown branch prediction option!")
 
     # load pickle files
     with open(args.schedule_model, 'rb') as file:
@@ -106,19 +119,18 @@ def main():
         print(" > ERROR: No variants available!")
         exit(1)
 
-
     ### model generation ###
+    Print.indent = 3
 
     # generate block and delay models
+    descs = []
     block_schedule = delay_model = None
-    
+
     # load code blocks from file(s)
     if args.files:
         print(" > loading from files...")
-        descs = []
         for file in args.files:
             print(f"  > loading from file '{file.name}'...")
-            Print.indent = 3
             assert file.exists()
             try:
                 address_start = int(file.stem, 16)
@@ -129,48 +141,20 @@ def main():
                 desc = InstructionBlockDescription.parse_stringlist(raw_instructions, name=file.stem, address_start=address_start)
                 print("   >", desc)
                 descs.append(desc)
-
-        block_schedule, delay_model = UnitTests.generate_models(schedule_model, descs, verbose=args.verbose, simplify=args.simplify)
     # load example code blocks
     elif args.examples:
         descs = Examples.test_vectors(pattern=args.examples)
-
-        block_schedule, delay_model = UnitTests.generate_models(schedule_model, descs, verbose=args.verbose, simplify=args.simplify)
-
-        # WIP
-        if args.nx:
-            nx_delay_model = DelayNxGraphTransformer(args.verbose).transform(block_schedule, descs)
-            for variant_name in nx_delay_model.variants:
-                variant = nx_delay_model.variants[variant_name]
-                for function_name in variant.scheduling_functions:
-                    graph = variant.scheduling_functions[function_name]
-                    with Profile(" > calculating longest path"):
-                        longest_path = nx.dag_longest_path(graph.G)
-                        longest_path_length = nx.dag_longest_path_length(graph.G)
-                    print(f"  > num paths: {len(tuple(nx.all_simple_paths(graph.G, source=longest_path[0], target=longest_path[-1])))}")
-                    print(f"  > path (length: {longest_path_length}, nodes: {len(longest_path)}):")
-                    print( "   ->", "\n   -> ".join(" -> ".join(longest_path[i:i+5]) for i in range(0, len(longest_path), 5)))
-    
     # run unittests
     elif args.tests:
-        if args.v2:
-            descs = Examples.test_vectors(pattern=args.tests)
-            block_schedule = BlockSchedulingTransformer(verbose=args.verbose).transform(schedule_model, descs)
-            delay_model    = DelayGraphTransformer_v2(verbose=args.verbose).transform(block_schedule, descs)
-            if args.cpi:
-                DelayAnalyzer(struct_model, delay_model, verbose=args.verbose) \
-                    .assume_registers_available() \
-                    .assume_fix_dynamic_delays(value=3) \
-                    .assume_pc_available() \
-                    .assume_perfect_pipeline() \
-                    .resolve(estimate_cpi=True)
-            exit(0)
         success = UnitTests.run()
         exit(success)
 
-    if block_schedule is None or delay_model is None:
-        print(" > ERROR: No block schedule was generated!")
+    if len(descs) == 0:
+        print(" > ERROR: No code blocks to generate schedule models!")
         exit(1)
+
+    block_schedule = BlockSchedulingTransformer(verbose=args.verbose).transform(schedule_model, descs, brpred_option=args.brpred)
+    delay_model    = DelayGraphTransformer(verbose=args.verbose).transform(block_schedule, descs, symbolic_vars=args.symbolic_vars)
 
     ### Backends ###
 
