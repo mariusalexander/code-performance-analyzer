@@ -10,7 +10,6 @@ from backends.schedule_viewer.SchedulingModelViewer import SchedulingModelViewer
 from src.Common import Profile, Print
 from src.InstructionBlockDescription import InstructionBlockDescription
 from src.BlockSchedulingTransformer import BlockSchedulingTransformer
-from src.DelayNxGraph import DelayNxGraphTransformer
 from src.DelayGraph import DelayGraphTransformer
 from src.DelayGraphViewer import DelayGraphViewer
 from src.DelayAnalyzer import DelayAnalyzer

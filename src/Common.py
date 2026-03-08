@@ -43,3 +43,16 @@ class Profile:
 # global variable for setting the indentation
 class Print:
     indent:int = 0
+
+    # creates a scope for which the indentation can be temporarily altered
+    class indent_scope:
+        def __init__(self, new_indent:int):
+            self.new_indent = new_indent
+
+        def __enter__(self):
+            self.old_indent = Print.indent
+            Print.indent = self.new_indent
+
+        def __exit__(self, *args):
+            Print.indent = self.old_indent
+

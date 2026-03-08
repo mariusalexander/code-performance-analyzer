@@ -1,7 +1,5 @@
 import tests.TestMaxTerm as TestMaxTerm
 
-from src.Common import PrintDisabled
-
 def assert_equal(base_model, other_model):
     """ Helper method to assert that two delay graph models are equal by comparing their expanded outputs. """
     assert len(base_model.variants) == len(other_model.variants), \
@@ -21,8 +19,8 @@ def assert_equal(base_model, other_model):
             assert len(base_graph.outputs()) == len(other_graph.outputs()), \
                    f"Number of outputs mismatches! ({len(base_graph.outputs())} vs expected {len(other_graph.outputs())})"
             for output_name in base_graph.outputs():
-                base_output  = base_graph.output(output_name).expanded(base_graph.intermediates())
-                other_output = other_graph.output(output_name).expanded(other_graph.intermediates())
+                base_output  = base_graph.output(output_name)
+                other_output = other_graph.output(output_name)
                 assert base_output == other_output, f"Mistmatch:\n > {output_name} \t {base_output}\t\n > {" " * (len(output_name) + 1)}\t {other_output}"
 
 def run():

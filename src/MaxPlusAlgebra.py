@@ -16,16 +16,17 @@ class DelayVariable:
     def __repr__(self):
         return self.__str__()
 
+    def add(self, delay:int) -> Self:
+        """ Adds the delay. """
+        self.delay += delay
+        return self
+
     def added(self, delay:int) -> 'DelayVariable':
-        """
-        Returns a copy with the added delay.
-        """
-        return DelayVariable(self.name, self.delay + delay)
+        """ Returns a copy with the added delay. """
+        return self.copy().add(delay)
 
     def copy(self) -> Self:
-        """
-        Returns a copy of this variable.
-        """
+        """ Returns a copy of this variable. """
         return DelayVariable(self.name, self.delay)
 
 class BaseTerm:
@@ -52,16 +53,15 @@ class BaseTerm:
                f"Incompatible type '{type(variable_name)}', expected 'str'!"
         return any(v.name == variable_name for v in self)
 
-    def __iter__(self) -> List[str]:
+    def __iter__(self) -> List['DelayGraph']:
         return self.variables.__iter__()
 
     def __len__(self) -> int:
         return len(self.variables)
 
     def __add__(self, other) -> Self:
-        assert isinstance(other, type(self)), \
-               f"Incompatible type '{type(value)}', expected '{type(self)}'!"
-        self.variables += other.variables
+        for var in other:
+            self.append(var)
         return self
 
     def names(self) -> List[str]:
@@ -107,7 +107,7 @@ class MaxTerm(BaseTerm):
         super().__init__(iterable_or_arg)
 
     def __str__(self) -> str:
-        return f"max({" + ".join(f"{v.name}+{v.delay}" for v in self)})"
+        return f"max({", ".join(f"{v.name}+{v.delay}" for v in self)})"
 
     def __eq__(self, other) -> bool:
         """ 
@@ -146,7 +146,7 @@ class MaxTerm(BaseTerm):
         if value < 0:
             raise ValueError("Only positive values are expected")
         for v in self:
-            v.delay += value
+            v.add(value)
         return self
 
     def simplified(self) -> 'MaxTerm':
@@ -155,122 +155,6 @@ class MaxTerm(BaseTerm):
         Keeps order of names. Returns a new term.
         """
         return MaxTerm(DelayVariable(name, self.max_delay(name)) for name in self.names())
-
-    def resolved(self, variable_name:str) -> 'MaxTerm':
-        """
-        Returns a new term in which the variable's delay is added with all 
-        other variables by evaluating the max delay.
-        """
-        delay = self.max_delay(variable_name)
-        if delay is None:
-            delay = 0
-        new_term = MaxTerm(DelayVariable(v.name, max(v.delay, delay)) for v in self if v.name != variable_name)
-        if len(new_term) == 0:
-            new_term.append(DelayVariable("", delay))
-        return new_term
-
-    def replaced(self, variable_name:str, new_variable:'DelayVariable') -> 'MaxTerm':
-        """
-        Replaces all instances of `variable_name` with `new_variable.name` 
-        and merges the delays accordingly. Returns a new, simplified term.
-        """
-        new_term = MaxTerm(v if v.name != variable_name else new_variable.added(v.delay) for v in self)
-        return new_term.simplified()
-
-    def difference(self, other:'MaxTerm') -> 'MaxTerm':
-        """
-        Returns a new simplified term with only the variables that this term contains but `other` does not.
-        Keeps order of names.
-        """
-        assert isinstance(other, MaxTerm), \
-               f"Incompatible type '{type(other)}', expected '{type(self)}'!"
-        return MaxTerm(v for v in self if v.name not in other)
-
-    def distance(self, other:'MaxTerm') -> Optional[int]:
-        """
-        Attempts to find a linear dependency between `self` and `other`.
-        For a linear dependency, all variables in `self` must be present in `other` with a consistent offset in their cofactors.
-        This offset is called the distance. May return a negative distance, if `self` can be expressed by `other`.
-        """
-        assert isinstance(other, MaxTerm), \
-               f"Incompatible type '{type(other)}', expected '{type(self)}'!"
-        # self cannot cover other if it has more variables
-        if len(self) > len(other):
-            return None
-        distance = None
-        for var in self:
-            other_delay = other.max_delay(var.name)
-            if other_delay is None:
-                return None
-            # calculate difference
-            current = other_delay - var.delay
-            # difference in delay is not linear
-            if distance is not None and distance != current:
-                return None
-            distance = current
-        return distance
-
-    def expanded(self, intermediates:Dict[str, 'MaxTerm']) -> 'MaxTerm':
-        """
-        Expands (unrolls) all intermediate variables by their corresponding variables.
-        Returns a new, simplified term.
-        """
-        if len(intermediates) == 0:
-            return self.simplified()
-        expanded = MaxTerm(chain((i.added(v.delay) for v in self if v.name in intermediates for i in intermediates[v.name]), \
-                                 (v                for v in self if v.name not in intermediates)))
-        assert all(i.name not in intermediates for i in expanded)
-        return expanded.simplified()
-
-    def repacked(self, intermediates:Dict[str, 'MaxTerm']) -> 'MaxTerm':
-        """
-        Attempts to find a new term, that reuses an intermediate variable to simplify the term.
-        Returns a new, simplified term.
-        """
-        if len(intermediates) == 0:
-            return self.simplified()
-        expanded   = self.expanded(intermediates)
-        best_match = expanded.find_best_intermediate(intermediates, expand=False)
-        if best_match is None:
-            return expanded # no need to simplify
-        repacked = expanded.difference(intermediates[best_match.name])
-        repacked.append(best_match)
-        return repacked.simplified()
-
-    def find_best_intermediate(self, intermediates:Dict[str, 'MaxTerm'], expand=True, allow_negative_distance=False) -> Optional['DelayVariable']:
-        """
-        Attempts to find an intermediate variable that best covers `self` such that it yields the smallest term.
-        `self` must be unrolled to find an intermediate.
-        """
-        this = self
-        if expand: this = self.expanded(intermediates)
-
-        last_name   = None
-        last_factor = None
-        last_len    = None
-        for name in intermediates:
-            term   = intermediates[name]
-            factor = term.distance(this)
-            if factor is None:
-                continue
-            curr_len = len(term)
-            if factor < 0:
-                # len must match if distance is negative
-                if not allow_negative_distance or curr_len != len(this):
-                    continue
-            if last_name is not None:
-                # prefer if variable covers more variables
-                if curr_len < last_len:
-                    continue
-                # keep last variable if its scores a lower
-                if curr_len == last_len and factor > last_factor:
-                    continue
-            last_name   = name
-            last_factor = factor
-            last_len    = curr_len
-        if last_name is None:
-            return None
-        return DelayVariable(last_name, last_factor)
 
 class PlusTerm(BaseTerm):
     """ 
@@ -301,6 +185,12 @@ class PlusTerm(BaseTerm):
         assert isinstance(variable, DelayVariable), \
                f"Incompatible type '{type(value)}', expected {type(DelayVariable)}'!"
         variable.delay = max(variable.delay, 1)
+        # update value if variable already exists
+        for var in self:
+            if var.name == variable.name:
+                var.add(variable.delay)
+                return self
+        # else add variable
         self.variables.append(variable)
         return self
 
@@ -319,16 +209,6 @@ class PlusTerm(BaseTerm):
         Keeps order of names. Returns a new term.
         """
         return PlusTerm(DelayVariable(name, self.count(name)) for name in self.names())
-
-    def replaced(self, variable_name:str, new_variable:'DelayVariable') -> 'PlusTerm':
-        """
-        Replaces all instances of `variable_name` with `new_variable.name` and merges the delays.
-        Returns a new, simplified term.
-        """
-        assert all(v.delay > 0 for v in self)
-        # variables in a plus are at least equal to one
-        new_term = PlusTerm(v if v.name != variable_name else new_variable.added(v.delay - 1) for v in self)
-        return new_term.simplified()
 
 class DelayFunction:
     """ 
@@ -426,8 +306,7 @@ class DelayFunction:
         if value < 0:
             raise ValueError("Only positive values are allowed")
         assert len(self.static_vars) > 0
-        for v in self.static_vars:
-            v.delay += value
+        self.static_vars.plus(value)
         return self
 
     def sort(self) -> Self:
@@ -463,34 +342,28 @@ class DelayFunction:
         Returns a new function in which each term is minimized by listing 
         each variable exactly once. Keeps order of names.
         """
-        copy = DelayFunction()
+        copy = self.copy()
         copy.static_vars  = copy.static_vars.simplified()
         copy.coefficients = copy.coefficients.simplified()
         return copy
 
-    def resolved(self, variable_name:str) -> 'DelayFunction':
-        """
-        Returns a new term in which the variable's delay is added with all 
-        other variables by evaluating the max delay accordingly.
-        """
-        copy = self.copy()
-        copy.static_vars = copy.static_vars.resolved(variable_name)
-        delay = copy.coefficients.count(variable_name)
-        if delay is not None:
-            copy.coefficients.remove(variable_name)
-            # coefficients are at least equal to one
-            copy.plus(delay)
-        return copy
+    def replace(self, variables:Dict[str, 'DelayVariable']) -> Self:
+        for var_name, new_var in variables.items():
+            for var in self.static_vars:
+                if var.name == var_name:
+                    var.name  = new_var.name
+                    var.add(new_var.delay)
+            for var in self.coefficients:
+                if var.name == var_name:
+                    var.name   = new_var.name
+                    var.delay *= new_var.delay
+        
+        offset = self.coefficients.count(variable_name="")
+        if offset is not None:
+            self.coefficients.remove(variable_name="")
+            self.plus(offset)
 
-    def replaced(self, variable_name:str, new_variable:'DelayVariable') -> 'DelayFunction':
-        """
-        Replaces all instances of `variable_name` with `new_variable.name` 
-        and merges the delays accordingly. Returns a new, simplified term.
-        """
-        copy = self.copy()
-        copy.static_vars  = copy.static_vars.replaced(variable_name, new_variable)
-        copy.coefficients = copy.coefficients.replaced(variable_name, new_variable)
-        return copy
+        return self
 
 class DelayFunctionList(list):
 
@@ -554,23 +427,23 @@ class DelayFunctionList(list):
         super().sort(key=lambda f: (len(f.static_vars), len(f.coefficients)))
         return self
 
+    def copy(self) -> 'DelayFunction':
+        """ 
+        Returns a deep copy of this object.
+        """
+        return DelayFunctionList(f.copy() for f in self)
+
     def simplified(self) -> 'DelayFunctionList':
         copy = DelayFunctionList()
         for function in self:
+            function = function.simplified()
             copy.merge(function)
         return copy
 
-    def replaced(self, variable_name:str, new_variable:'DelayVariable') -> 'DelayFunctionList':
-        copy = DelayFunctionList()
+    def replace(self, variables:Dict[str, 'DelayVariable']) -> Self:
         for function in self:
-            copy.merge(function.replaced(variable_name, new_variable))
-        return copy
-
-    def resolved(self, variable_name:str) -> 'DelayFunctionList':
-        copy = DelayFunctionList()
-        for function in self:
-            copy.merge(function.resolved(variable_name))
-        return copy
+            function.replace(variables)
+        return self
 
     def merge(self, other_function:'DelayFunction') -> Self:
         """
@@ -605,13 +478,13 @@ class DelayFunctionList(list):
             # yields:
             #  -> Static:  max(3Z, 1U)
             #  -> Dynamic: max(2X, 1Y, 1Z) + d1
-            elif static.is_static():
+            if static.is_static():
                 redundant = []
                 # each coefficient must be at least equal to one
                 num_coefficients = sum(v.delay for v in dynamic.coefficients.simplified())
                 for v in (v for v in static.static_vars if v.name in dynamic.static_vars):
                     max_delay = dynamic.static_vars.max_delay(v.name) + num_coefficients
-                    if v.delay >= num_coefficients and v.delay <= max_delay:
+                    if v.delay <= max_delay:
                         redundant.append(v.name)
                 if len(redundant) > 0:
                     #assert len(redundant) < len(static.static_vars), \

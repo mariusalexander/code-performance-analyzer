@@ -145,20 +145,14 @@ class DelayAnalyzer:
                     estimations = []
 
                     for output_name, output in delay_graph.outputs().items():
-                        if hasattr(delay_graph, "intermediates"):
-                            output = output.expanded(delay_graph.intermediates())
                         if self.verbose:
-                            before = output
-                        for mapping in mappings:
-                            output = output.replaced(mapping, mappings[mapping])
+                            before = output.copy()
+                        output.replace(mappings)
                         output = output.simplified()
-                        output = output.resolved(self._zero.name)
-                        if self.verbose:
-                            restore = Print.indent
-                            Print.indent = 32
-                            print(f"   > Resolved {output_name.ljust(10)} :  {before}\t \n" + \
-                                  f"              {"".ljust(10)} => {output}")
-                            Print.indent = restore
+                        if self.verbose: 
+                            with Print.indent_scope(32):
+                                print(f"   > Resolved {output_name.ljust(10)} :  {before}\n" + \
+                                      f"              {         "".ljust(10)} => {output}")
                         if estimate_cpi and output_name in relationships:
                             relation = relationships[output_name]
                             estimations.append(DelayVariable(output_name, output.max_delay(relation.name)))

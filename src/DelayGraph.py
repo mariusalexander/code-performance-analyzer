@@ -214,7 +214,7 @@ class DelayGraphTransformer:
     def __get_inputs(self, node:Node, graph:'DelayGraph') -> List['DelayFunction']:
         """
         Accumulates all input variables for the given node.
-        Returns a non-simplified term.
+        Returns a simplified term.
         """
         functions = DelayFunctionList()
 
@@ -244,7 +244,7 @@ class DelayGraphTransformer:
             graph.register_dynamic_variable(node.name, variable)
             functions.append_coefficient(DelayVariable(variable))
 
-        return functions
+        return functions.simplified()
 
     def __set_output(self, node:Node, functions:List['MaxTerm'], graph:'DelayGraph') -> str:
         """
