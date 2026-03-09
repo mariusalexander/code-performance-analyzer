@@ -13,6 +13,7 @@ from src.BlockSchedulingTransformer import BlockSchedulingTransformer
 from src.DelayGraph import DelayGraphTransformer
 from src.DelayGraphViewer import DelayGraphViewer
 from src.DelayAnalyzer import DelayAnalyzer
+from src.InputVectorGenerator import InputVectorGenerator, PipelineDescription
 
 import tests.TestVectors as Examples
 import tests.UnitTests as UnitTests
@@ -83,7 +84,6 @@ def main():
         args_parser.error(f"Conflicting arguments: either use --files, --examples, or --tests!")
 
     args.symbolic_vars = list(filter(lambda arg: len(arg) > 0, (arg.strip() for arg in args.symbolic_vars[0].split(","))))
-    #args.symbolic_vars = list(arg         for arg in args.symbolic_vars if len(arg) > 0)
 
     if args.brpred:
         [args.brpred] = args.brpred
@@ -127,19 +127,7 @@ def main():
 
     # load code blocks from file(s)
     if args.files:
-        print(" > loading from files...")
-        for file in args.files:
-            print(f"  > loading from file '{file.name}'...")
-            assert file.exists()
-            try:
-                address_start = int(file.stem, 16)
-            except ValueError:
-                address_start = 0
-            with open(file) as f:
-                raw_instructions = f.readlines()
-                desc = InstructionBlockDescription.parse_stringlist(raw_instructions, name=file.stem, address_start=address_start)
-                print("   >", desc)
-                descs.append(desc)
+        descs = InstructionBlockDescription.load_from_files(args.files)
     # load example code blocks
     elif args.examples:
         descs = Examples.test_vectors(pattern=args.examples)
@@ -164,12 +152,38 @@ def main():
         DelayGraphViewer().execute(delay_model, args.out_dir)
     # cpi analysis
     if args.cpi:
-        DelayAnalyzer(struct_model, delay_model, verbose=args.verbose) \
-            .assume_registers_available() \
-            .assume_fix_dynamic_delays() \
-            .assume_pc_available() \
-            .assume_perfect_pipeline() \
-            .resolve(estimate_cpi=True)
+
+        for variant in delay_model.variants:
+            [struct_variant] = tuple(filter(lambda v: v.name == variant.name, struct_model.variants))
+            pipeline = PipelineDescription.generate(struct_variant)
+
+            for delay_graph in variant.delay_graphs:
+                input_vector = InputVectorGenerator(struct_variant, delay_graph, verbose=args.verbose) \
+                                    .assume_all_registers_available() \
+                                    .assume_fix_dynamic_delays(value=1) \
+                                    .assume_pc_available() \
+                                    .assume_perfect_pipeline(pipeline=pipeline) \
+                                    .finalize()
+
+                source_functions  = delay_graph.outputs()
+
+                analyzer = DelayAnalyzer(verbose=args.verbose)
+                applied_functions = analyzer.apply_input_vector(input_vector=input_vector, functions=source_functions)
+                output_vector = None
+                # can only evaluate term if there are no symbolic variables
+                if not args.symbolic_vars:
+                    output_vector = analyzer.evaluate(applied_functions)
+                analyzer.print({
+                    "original": source_functions, 
+                    "resolved": applied_functions, 
+                    "evaluated": output_vector
+                })
+                if output_vector is not None:
+                    num_instructions = len(delay_graph.code_block.instructions)
+                    cpi, stage = analyzer.estimate_cpi(pipeline, output_vector, num_instructions)
+                    print(delay_graph.code_block)
+                    print("cpi", cpi, stage)
+
 
 if __name__ == "__main__":
     main()

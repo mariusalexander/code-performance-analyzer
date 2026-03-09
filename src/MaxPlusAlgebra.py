@@ -355,6 +355,7 @@ class DelayFunction:
                     var.add(new_var.delay)
             for var in self.coefficients:
                 if var.name == var_name:
+                    assert new_var.delay > 0
                     var.name   = new_var.name
                     var.delay *= new_var.delay
         
@@ -362,8 +363,22 @@ class DelayFunction:
         if offset is not None:
             self.coefficients.remove(variable_name="")
             self.plus(offset)
-
         return self
+
+    def evaluate(self) -> Optional[int]:
+        """ 
+        Attempts to evaluate this function. Must contain no coefficients and only be made up of null delay variables.
+        """
+        names = self.coefficients.names()
+        if len(names) != 0 and [''] != names:
+            raise RuntimeError(f"Function '{self}' contains unresolved coefficients: {", ".join(name for name in names if len(name) > 0)}")
+        offset = self.coefficients.count(variable_name='')
+        names  = self.static_vars.names()
+        if [''] != names:
+            raise RuntimeError(f"Function '{self}' contains unresolved delays: {", ".join(name for name in names if len(name) > 0)}")
+        value = self.static_vars.max_delay(variable_name='')
+        assert value is not None
+        return value + offset
 
 class DelayFunctionList(list):
 
@@ -444,6 +459,9 @@ class DelayFunctionList(list):
         for function in self:
             function.replace(variables)
         return self
+
+    def evaluate(self) -> Optional[int]:
+        return max(f.evaluate() for f in self)
 
     def merge(self, other_function:'DelayFunction') -> Self:
         """

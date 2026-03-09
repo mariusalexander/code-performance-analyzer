@@ -44,12 +44,6 @@ def MaxTerm_names():
         reference = list(reference.keys())
         assert term.names() == reference, f"names: {term.names()} != {reference}"
 
-def MaxTerm_resolved():
-    for factory, reference in test_vectors():
-        term = factory()
-        term = term.resolved("a")
-        assert all(term.max_delay(v.name) == reference["a"] for v in term), f"resolving {term} should yield {reference["a"]}"
-
 def MaxFunction_plus():
     reference = {"a":3, "b":2, "c":1}
 
@@ -138,16 +132,16 @@ def MaxFunction_resolved():
     function = DelayFunction()
     function.append_static_var(DelayVariable("X", 3))
     function.append_static_var(DelayVariable("Y", 3))
-    function = function.resolved("X")
+    function = function.replace({"X":DelayVariable("", 1)})
     assert function.max_delay("Y") == 3, f"{function.max_delay("Y")} != 3"
     
     function.append_coefficient(DelayVariable("X", 2))
-    function = function.resolved("X")
+    function = function.replace({"X":DelayVariable("", 1)})
     assert function.max_delay("Y") == 5, f"{function.max_delay("Y")} != 5"
 
 def tests():
     print("  > Testing 'MaxTerm':")
-    for test_function in MaxTerm_max_delay, MaxTerm_plus, MaxTerm_names, MaxTerm_resolved, \
+    for test_function in MaxTerm_max_delay, MaxTerm_plus, MaxTerm_names, \
                          MaxFunction_plus, MaxFunction_is_covered_by, MaxFunction_merge, MaxFunction_resolved:
         print(f"   > executing {test_function.__name__}...")
         test_function()

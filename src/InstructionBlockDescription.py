@@ -67,7 +67,7 @@ class InstructionBlockDescription:
     def has_valid_instructions(self):
         for instr in self.instructions:
             match instr.name:
-                case "j", "mret" | "call" | "ret" | "ecall" | "fence":
+                case "j" | "mret" | "call" | "ret" | "ecall" | "fence":
                     return False
         return True
 
@@ -92,8 +92,26 @@ class InstructionBlockDescription:
             elif not printed:
                 print(f"{" " * Print.indent}> WARNING: cannot determine pc of instruction (instr. idx = {len(desc.instructions)})")
                 printed = True
-            instr_name = re.search(r"\s([a-z][a-z0-9]*?)+\s", raw_instructions).group().strip()
+            instr_name = re.search(r"\s?([a-z][a-z0-9]*?)+\s", raw_instructions).group().strip()
             registers  = re.findall(r"([a-z][a-z0-9]+)=(\d+)", raw_instructions)
             registers  = { r[0]:int(r[1]) for r in registers }
             desc.addInstruction(instr_name, address=address, **registers)
         return desc
+
+    @staticmethod
+    def load_from_files(files:List['pathlib.Path']):
+        descs = []
+        print(" > loading from files...")
+        for file in files:
+            print(f"  > loading from file '{file.name}'...", type(file))
+            assert file.exists()
+            try:
+                address_start = int(file.stem, 16)
+            except ValueError:
+                address_start = 0
+            with open(file) as f:
+                raw_instructions = f.readlines()
+                desc = InstructionBlockDescription.parse_stringlist(raw_instructions, name=file.stem, address_start=address_start)
+                print("   >", desc)
+                descs.append(desc)
+        return descs

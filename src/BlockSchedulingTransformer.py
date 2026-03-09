@@ -1,18 +1,3 @@
-#
-# Copyright 2025 Chair of EDA, Technical University of Munich
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#       http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
 
 import copy
 from collections import deque
@@ -34,8 +19,7 @@ class BlockSchedulingTransformer:
         self.rename_edges  = True
         self.brpred_option = ""
         # TODO: infer these attributes dynamically from core perf dsl or the struct model
-        self._register_count   = 32
-        self._register_models  = ["regModel", "clobberModel"]
+        self._register_models = ["regModel", "clobberModel"]
         self._target_register_mapping = {
             "regModel" : "Xd",
             "clobberModel": "Cb_in",
@@ -91,7 +75,7 @@ class BlockSchedulingTransformer:
             mappings.timingVariables[timing_var.name] = [ None for _ in range(0, timing_var.getNumElements()) ]
         # mappings for register models
         for reg_model in self._register_models:
-            mappings[reg_model] = { reg:None for reg in range(0, self._register_count) }
+            mappings[reg_model] = { }
         # mappings for branch prediction
         # TODO: infer connector mapping automatically
         for pred_model in self._branch_prediction_models:
@@ -251,8 +235,8 @@ class BlockSchedulingTransformer:
         registers  = mappings[model]
         registerNo = instr[edge.name]
         assert registerNo is not None, f"{block_desc.name}: Instruction '{instr.name}' requires register '{edge.name}'! (undefined)"
-        last_node  = registers[registerNo]
-        if not last_node:
+        last_node = registers[registerNo] if registerNo in registers else None
+        if last_node is None:
             if self.verbose:
                 print(f"    > Resolved {model}: Node '{block_node.name}' uses 'r{registerNo} ({edge.name})'")
             edge_name = f"r{registerNo} ({edge.name})" if self.rename_edges else edge.name
@@ -276,7 +260,6 @@ class BlockSchedulingTransformer:
             mapping = mappings[model]
             for registerNo in mapping:
                 block_node = mapping[registerNo]
-                # assert not (block_node and registerNo == 0), f"r0 (zero) should not be used set!"
                 if not block_node:
                     continue
                 target_register = self._target_register_mapping[model]
