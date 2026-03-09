@@ -92,7 +92,7 @@ class InstructionBlockDescription:
             elif not printed:
                 print(f"{" " * Print.indent}> WARNING: cannot determine pc of instruction (instr. idx = {len(desc.instructions)})")
                 printed = True
-            instr_name = re.search(r"\s?([a-z][a-z0-9]*?)+\s", raw_instructions).group().strip()
+            instr_name = re.search(r"(^|\s)([a-z][a-z0-9]*?)+\s", raw_instructions).group().strip()
             registers  = re.findall(r"([a-z][a-z0-9]+)=(\d+)", raw_instructions)
             registers  = { r[0]:int(r[1]) for r in registers }
             desc.addInstruction(instr_name, address=address, **registers)

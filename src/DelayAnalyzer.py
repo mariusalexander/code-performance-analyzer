@@ -73,7 +73,7 @@ class DelayAnalyzer:
         max_val = max(reversed(estimations), key=lambda v: v.delay)
         cpi = max_val.delay / num_instructions
         if self.verbose:
-            print(f"   > max({", ".join([f"{e.name}+{e.delay - pipeline_offsets[e.name]}" for e in estimations])})")
+            print(f"   > max({", ".join([f"{e.name}+{e.delay}" for e in estimations])})")
             print(f"   > \tbb={output_name} \tCPI = {f"{max_val.delay}/{num_instructions}":<10} = {cpi:.3f} \t({max_val.name})")
 
         return cpi, max_val
