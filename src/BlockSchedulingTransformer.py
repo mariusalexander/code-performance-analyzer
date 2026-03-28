@@ -2,12 +2,54 @@
 import copy
 from collections import deque
 from typing import List, Dict
+from itertools import chain
 
 from meta_models.scheduling_model.SchedulingModel import SchedulingModel, Variant, SchedulingFunction, Node, StaticEdge
 
 from src.Common import dotdict, Profile, twos_complement
 from src.InstructionBlockDescription import InstructionBlockDescription
 
+
+class BlockSchedulingModel(SchedulingModel):
+
+    def createVariant(self, name_:str) -> 'BlockSchedulingVariant':
+        variant = BlockSchedulingVariant(name_)
+        self.variants.append(variant)
+        return variant
+
+class BlockSchedulingVariant(Variant):
+
+    def createSchedulingFunction(self, name_:str, id_:int) -> 'SchedulingFunction':
+        func = BlockSchedulingFunction(name_, id_, self)
+        self.schedulingFunctions.append(func)
+        return func
+
+class BlockSchedulingFunction(SchedulingFunction):
+
+    def __init__(self, *args):
+        self._inputs  = {}
+        self._outputs = {}
+        self._dynamic_variables = {}
+        self._input_vector = None
+        super().__init__(*args)
+
+    def inputs(self):
+        return self._inputs
+
+    def outputs(self):
+        return self._outputs
+
+    def dynamic_variables(self):
+        return self._dynamic_variables
+
+    def all_variables(self):
+        return chain(self.inputs(), self.outputs(), self.dynamic_variables())
+
+    def input_vector(self):
+        return self._input_vector
+
+    def set_input_vector(self, input_vector):
+        self._input_vector = input_vector
 
 class BlockSchedulingTransformer:
     """Block Scheduling Transformer"""
@@ -37,7 +79,8 @@ class BlockSchedulingTransformer:
 
         self.brpred_option = brpred_option
 
-        blockSchedulingModel = SchedulingModel()
+        blockSchedulingModel = BlockSchedulingModel()
+
         # iterate over each variant
         with Profile(f" > Generating all block scheduling variants"):
             for sched_variant in sched_model.getAllVariants():
@@ -63,9 +106,14 @@ class BlockSchedulingTransformer:
         """
         print(f"  > Generating block scheduling function for '{block_desc.name}'...")
 
+
         # create block scheudling function
         block_function = block_variant.createSchedulingFunction(block_desc.name, self._id)
         self._id += 1
+
+        self._inputs   = block_function._inputs
+        self._outputs  = block_function._outputs
+        self._dynamicVariables = block_function._dynamic_variables
 
         # helper struct to resolve external and internal edges
         mappings = dotdict()
@@ -192,10 +240,11 @@ class BlockSchedulingTransformer:
         assert len(history) >= edge.depth, f"Edge exceeds capacity of timing variable '{timing_variable}' (expected {len(history)} vs. depth {edge.depth})"
 
         last_node = history[edge.depth - 1]
-        if not last_node:
+        if last_node is None:
             # append global input edge
             current_depth = len(history) - history.count(None)
             block_node.createStaticInEdge(timing_variable, edge.depth - current_depth)
+            self._inputs[f"{timing_variable}[{edge.depth}]"] = block_node
             return
         # connect to previous node
         if self.verbose:
@@ -229,6 +278,7 @@ class BlockSchedulingTransformer:
                 edge = last_node.createStaticOutEdge(timing_variable)
                 # TODO: we need to properly support depth > 1 for outgoing edges in M2-ISA-R-Perf
                 edge.depth = idx + 1
+                self._outputs[f"{timing_variable}[{edge.depth}]"] = last_node
 
     def __resolveRegisterInEdge(self, block_node:Node, edge:StaticEdge, block_desc:InstructionBlockDescription, block_idx:int, mappings, model:str):
         instr = block_desc.instructions[block_idx]
@@ -241,6 +291,7 @@ class BlockSchedulingTransformer:
                 print(f"    > Resolved {model}: Node '{block_node.name}' uses 'r{registerNo} ({edge.name})'")
             edge_name = f"r{registerNo} ({edge.name})" if self.rename_edges else edge.name
             block_node.createDynamicInEdge(edge_name, model) # append edge
+            self._inputs[edge_name] = block_node
             return
         if self.verbose:
             print(f"    > Resolved {model}: Node '{block_node.name}' uses 'r{registerNo} ({edge.name})' set by '{last_node.name}'")
@@ -267,6 +318,7 @@ class BlockSchedulingTransformer:
                     print(f"    > Resolved register: Node '{block_node.name}' outputs 'r{registerNo} ({target_register})' ({model})")
                 edge_name = f"r{registerNo} ({target_register})" if self.rename_edges else target_register
                 block_node.createDynamicOutEdge(edge_name, model)
+                self._outputs[edge_name] = block_node
 
     def __resolveBranchPredictionInEdge(self, block_node:Node, edge:StaticEdge, block_desc:InstructionBlockDescription, block_idx:int, mappings, model:str):
         instr = block_desc.instructions[block_idx]
@@ -278,6 +330,7 @@ class BlockSchedulingTransformer:
             if self.verbose:
                 print(f"    > Resolved {model}: Node '{block_node.name}' uses '{edge.name}'")
             block_node.createDynamicInEdge(edge.name, model) # append edge
+            self._inputs[edge.name] = block_node
             return
         if self.verbose:
             print(f"    > Resolved {model}: Node '{block_node.name}' uses '{edge.name}' set by '{last_node.name}'")
@@ -293,7 +346,7 @@ class BlockSchedulingTransformer:
         if edge.name == "Pc_np":
             if model == "dynBranchPredModel":
                 return
-            if model == "staBranchPredModel":                
+            if model == "staBranchPredModel":
                 match self.brpred_option:
                     # the pc_np path has no effect if branch prediction predicts correctly.
                     case "sta_never_taken":
@@ -301,13 +354,13 @@ class BlockSchedulingTransformer:
                         assert imm is not None, f"branch instruction has no target (imm value is empty)! {instr}"
                         target_pc = twos_complement(int(imm), 13)
                         if target_pc == 0:
-                            return
-                        if block_idx + 1 < len(block_desc.instructions):
+                            print(f"   > WARN: br target for instr. {instr.name} (idx {block_idx}) has unknown target!")
+                        elif block_idx + 1 < len(block_desc.instructions):
                             next_pc = block_desc.instructions[block_idx + 1].address
                             if (instr.address - next_pc) == 4:
                                 return
                             assert next_pc == instr.address + target_pc
-                            print(f"   > INFO: adding control hazard: 'never taken' mispredicted (instr. idx {block_idx})")
+                        print(f"   > INFO: adding control hazard: 'never taken' mispredicted (instr. idx {block_idx})")
                     case _:
                         return
         # pc_p and pc_np become the new pc inputs
@@ -326,8 +379,12 @@ class BlockSchedulingTransformer:
                 if not block_node:
                     continue
                 if self.verbose:
+                    print(f"    > Resolved {model}: Node '{block_node.name}' outputs 'Pc' ({connector})")
                     print(f"    > Resolved {model}: Node '{block_node.name}' outputs '{connector}'")
+                block_node.createDynamicOutEdge("Pc", model)
                 block_node.createDynamicOutEdge(connector, model)
+                self._outputs["Pc"]      = block_node
+                self._outputs[connector] = block_node
 
     def __findElementByName(self, elements, name, error_str = ""):
         element = tuple(filter(lambda e: e.name == name, elements))
@@ -343,3 +400,4 @@ class BlockSchedulingTransformer:
         # link resource model
         if source_node.resourceModel:
             block_node.resourceModel = block_node.parentVariant.getResourceModel(source_node.resourceModel.name)
+            self._dynamicVariables[f"{block_node.name}"] = block_node

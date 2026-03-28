@@ -4,16 +4,19 @@ import pathlib
 import argparse
 import fnmatch
 import pickle
+import json
+from objprint import op
 
 from backends.schedule_viewer.SchedulingModelViewer import SchedulingModelViewer
 
-from src.Common import Profile, Print
+from src.Common import Profile, Print, dotdict
 from src.InstructionBlockDescription import InstructionBlockDescription
 from src.BlockSchedulingTransformer import BlockSchedulingTransformer
 from src.DelayGraph import DelayGraphTransformer
 from src.DelayGraphViewer import DelayGraphViewer
 from src.DelayAnalyzer import DelayAnalyzer
-from src.InputVectorGenerator import InputVectorGenerator, PipelineDescription
+from src.InputVectorGenerator import InputVector, InputVectorGenerator, PipelineDescription
+from src.MaxPlusAlgebra import DelayVariable, DelayFunction_v2, DelayFunctionList
 
 import tests.TestVectors as Examples
 import tests.UnitTests as UnitTests
@@ -22,8 +25,11 @@ def main():
 
     # helper function to filter out unneeded variants
     def filter_variants(model, pattern, verbose=True):
+        invert = pattern.startswith("-")
+        if invert:
+            pattern = pattern[1:]
         variants = model.variants
-        model.variants = [var for var in model.variants if fnmatch.fnmatch(var.name, pattern)]
+        model.variants = [var for var in model.variants if fnmatch.fnmatch(var.name, pattern) != invert]
         if not verbose:
             return
         for var in (var for var in variants if var not in model.variants):
@@ -46,16 +52,24 @@ def main():
     args_parser.add_argument("-o", "--out-dir"    , type=valid_path, default=dirname, help="Directory to store generated files")
     args_parser.add_argument("--cores"            , type=str, help="Filters out any core variants that do not match the given Wildcard pattern")
     args_parser.add_argument("-v", "--verbose"    , action="store_true", help="Enables verbose output.")
+    args_parser.add_argument("-p", "--print"      , action="store_true", help="Prints the results.")
+    args_parser.add_argument("-b", "--print-bb"   , action="store_true", help="Prints the code_block.")
     # inputs
     args_parser.add_argument("--tests"            , action="store_true", help="Executes all unittests.")
     args_parser.add_argument("--examples"         , nargs='?', type=str, const='*', help="Loads example basic blocks. A Wildcard pattern can be used to load only certain tests.")
     args_parser.add_argument("--files"            , nargs='+', type=valid_path, const=None, help="Parses code blocks from disk. Multiple input files can be specified.")
+
     args_parser.add_argument("--symbolic-vars"    , nargs=  1, type=str, default=[""], help="Comma separated list of keywords to find nodes whose delay should be made symbolic.")
     args_parser.add_argument("--brpred"           , nargs=  1, type=str, default=None, help="...")
+    args_parser.add_argument("--resolve-later"    , action="store_true", help="Whether to resolve the outputs as a function of the inputs")
+    args_parser.add_argument("--dynamic-delays"   , nargs=  1, type=int, default=[None], help="...")
+    args_parser.add_argument("--loopback"         , action="store_true", help="...")
     # targets
     args_parser.add_argument("--schedule-graph"   , action="store_true", help="Generates schedule graphs for the generated instruction block schedules (writes to `out-dir`, uses M2-ISA-R-Perf internally)")
     args_parser.add_argument("--delay-graph"      , action="store_true", help="Generates delay graphs for the selected instruction blocks (writes to `out-dir`). (WIP)")
-    args_parser.add_argument("--cpi"              , action="store_true", help="Estimates the CPI for each instruction block (prints to stdout).")
+    args_parser.add_argument("--cpi"              , nargs='?', type=valid_path, const=True, help="Estimates the CPI for each instruction block. Prints to stdout. If given a file name exports results to file")
+    args_parser.add_argument("--exit"             , action="store_true", help="Exits the programm before estimating the CPI.")
+    args_parser.add_argument("--suffix"           , nargs=  1, type=str, default=[None], help="...")
     args = args_parser.parse_args()
 
     if isinstance(args.out_dir, list):
@@ -68,6 +82,9 @@ def main():
     # parse arguments
     schedule_model = struct_model = None
     model_path = pathlib.Path(args.schedule_model).resolve()
+
+    [args.dynamic_delays] = args.dynamic_delays
+    [args.suffix]         = args.suffix
 
     if model_path.is_dir():
         print(" > Attemping to load default models...")
@@ -104,7 +121,7 @@ def main():
             print(" > loading structural model...")
             with Profile("  > unpickling struct model"):
                 struct_model = pickle.load(file)
-    elif args.cpi:
+    elif args.cpi or not args.resolve_later:
         args_parser.error(f"Missing structural model for CPI analysis!")
 
     # filter out variants
@@ -140,8 +157,30 @@ def main():
         print(" > ERROR: No code blocks to generate schedule models!")
         exit(1)
 
+    resolve_dynamic_delays = args.dynamic_delays is not None
     block_schedule = BlockSchedulingTransformer(verbose=args.verbose).transform(schedule_model, descs, brpred_option=args.brpred)
-    delay_model    = DelayGraphTransformer(verbose=args.verbose).transform(block_schedule, descs, symbolic_vars=args.symbolic_vars)
+
+    # generate input vector upfront
+    if not args.resolve_later:
+        DelayFunctionList.use_v2 = True
+
+        for variant in block_schedule.getAllVariants():
+            [struct_variant] = tuple(filter(lambda v: v.name == variant.name, struct_model.variants))
+            pipeline = PipelineDescription.generate(struct_variant)
+
+            for block_function in variant.getAllSchedulingFunctions():
+                input_vector = InputVectorGenerator(struct_variant, block_function, verbose=args.verbose) \
+                                .assume_all_registers_available() \
+                                .assume_pc_available() \
+                                .assume_perfect_pipeline(pipeline=pipeline)
+                if resolve_dynamic_delays:
+                    input_vector.assume_fix_dynamic_delays(value=args.dynamic_delays)
+                input_vector = input_vector.finalize()
+
+                print(" > Input Vector", input_vector)
+                block_function.set_input_vector(input_vector)
+
+    delay_model = DelayGraphTransformer(verbose=args.verbose).transform(block_schedule, descs, symbolic_vars=args.symbolic_vars)
 
     ### Backends ###
 
@@ -150,40 +189,103 @@ def main():
         SchedulingModelViewer().execute(block_schedule, args.out_dir, alternate_color=True, show_delays=True)
     if args.delay_graph:
         DelayGraphViewer().execute(delay_model, args.out_dir)
-    # cpi analysis
-    if args.cpi:
+    if args.exit:
+        exit(0)
 
-        for variant in delay_model.variants:
+    results = {}
+    # cpi analysis 
+    analyzer = DelayAnalyzer(verbose=args.verbose)
+
+    for variant in delay_model.variants:
+        results[variant.name] = {}
+
+        if args.resolve_later:
             [struct_variant] = tuple(filter(lambda v: v.name == variant.name, struct_model.variants))
             pipeline = PipelineDescription.generate(struct_variant)
 
-            for delay_graph in variant.delay_graphs:
+        for delay_graph in variant.delay_graphs:
+            [block_function] = [s for v in block_schedule.getAllVariants() if v.name == variant.name for s in v.getAllSchedulingFunctions() if s.name == delay_graph.name]
+            input_vector      = block_function.input_vector()
+            source_functions  = delay_graph.outputs()
+            applied_functions = source_functions
+
+            if args.resolve_later:
                 input_vector = InputVectorGenerator(struct_variant, delay_graph, verbose=args.verbose) \
                                     .assume_all_registers_available() \
-                                    .assume_fix_dynamic_delays(value=1) \
                                     .assume_pc_available() \
                                     .assume_perfect_pipeline(pipeline=pipeline) \
                                     .finalize()
-
-                source_functions  = delay_graph.outputs()
-
-                analyzer = DelayAnalyzer(verbose=args.verbose)
+                if resolve_dynamic_delays:
+                    input_vector.assume_fix_dynamic_delays(value=args.dynamic_delays)
+                input_vector = input_vector.finalize()
                 applied_functions = analyzer.apply_input_vector(input_vector=input_vector, functions=source_functions)
-                output_vector = None
-                # can only evaluate term if there are no symbolic variables
-                if not args.symbolic_vars:
-                    output_vector = analyzer.evaluate(applied_functions)
-                analyzer.print({
-                    "original": source_functions, 
-                    "resolved": applied_functions, 
-                    "evaluated": output_vector
-                })
-                if output_vector is not None:
-                    num_instructions = len(delay_graph.code_block.instructions)
-                    cpi, stage = analyzer.estimate_cpi(pipeline, output_vector, num_instructions)
-                    print(delay_graph.code_block)
-                    print("cpi", cpi, stage)
 
+            # can only evaluate term if there are no symbolic variables
+            output_vector_1st_iter = None
+            if not args.symbolic_vars and len(block_function.dynamic_variables()) == 0:
+                output_vector_1st_iter = analyzer.evaluate(applied_functions)
+            elif args.cpi:
+                raise RuntimeError("Failed to determince CPI, graph contains unknown delays!")
+            elif args.loopback:
+                raise RuntimeError("Failed to perform loopback, graph contains unknown delays!")
+            output_vector = output_vector_1st_iter
+
+            # feed outputs as an input and evaluate delay graph once more
+            output_vector_2nd_iter = None
+            if args.loopback and output_vector != None:
+                input_vector = block_function.input_vector()
+                input_vector.merge(output_vector)
+                block_function.set_input_vector(input_vector)
+
+                delay_graph_2nd_iter = DelayGraphTransformer(verbose=args.verbose).transform_block(block_function, delay_graph.code_block, symbolic_vars=args.symbolic_vars)
+                output_vector_2nd_iter = analyzer.evaluate(delay_graph_2nd_iter.outputs())
+                output_vector = output_vector_2nd_iter
+
+            if args.print:
+                analyzer.print({
+                    "original"  : (source_functions if args.resolve_later else None), 
+                    "resolved"  : applied_functions, 
+                    "evaluated" : output_vector_1st_iter,
+                    "2nd evaluation" : output_vector_2nd_iter
+                })
+
+            if args.cpi:
+                num_instructions = len(delay_graph.code_block.instructions)
+                cpi, stage = analyzer.estimate_cpi(pipeline, output_vector, num_instructions, offset=input_vector[pipeline.start()].delay)
+                if args.print_bb:
+                    print(delay_graph.code_block)
+                print(variant.name.ljust(30), delay_graph.name.ljust(20), "CPI:", cpi, stage, len(delay_graph.code_block.instructions))
+                
+                assert delay_graph.name not in results[variant.name], "Duplicate result entry!"
+                results[variant.name][delay_graph.name] = dotdict({
+                    "cpi": cpi,
+                    "weight": delay_graph.code_block.weight,
+                    "diciding_stage"   : stage.name[2:],
+                    "diciding_timing"  : stage.delay,
+                    "num_instructions" : len(delay_graph.code_block.instructions),
+                    "input_vector"     : { n:v.delay for n, v in input_vector.items() },
+                    "output_vector"    : { v[2:]:d for v, d in output_vector.items() }
+                })
+    
+    # export results
+    if isinstance(args.cpi, pathlib.Path):
+        for variant_name in results:
+            result = results[variant_name]
+            with open(args.cpi / f"{variant_name}_{args.suffix + "_" if args.suffix else ""}results.json", "w") as f:
+                f.write(json.dumps(result, indent=4))
+
+    # print total cpi if possible
+    print()
+    for variant_name in results:
+        result = results[variant_name]
+        total_weight = sum(bb.weight for bb in result.values() if bb.weight is not None)
+        if len(result) == 1:
+            print(variant_name.ljust(30), "total CPI:", tuple(result.values())[0].cpi)
+            continue
+        if total_weight == 0:
+            print("WARNING: Cannot determine total CPI, missing weights for basic blocks!")
+            continue
+        print(variant_name.ljust(30), "total CPI:", str(sum((bb.cpi * bb.weight / total_weight) for bb in result.values())).ljust(20), f"total weight: {total_weight * 100:.3f}%")
 
 if __name__ == "__main__":
     main()

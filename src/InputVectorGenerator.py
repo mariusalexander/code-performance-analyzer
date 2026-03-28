@@ -1,5 +1,7 @@
 import re
+from objprint import op
 from typing import List, Dict, Self
+from itertools import chain
 
 from meta_models.structural_model.StructuralModel import Variant
 
@@ -30,6 +32,7 @@ class PipelineDescription(dotdict):
         timing_variables = PipelineDescription()
         pipeline = structural_variant.getPipeline()
         stages   = pipeline.getFirstStages()
+
         while stages:
             next_stages = []
             for stage in stages:
@@ -40,7 +43,7 @@ class PipelineDescription(dotdict):
                 edge = dotdict({"timingVariable":dotdict({"name":timing_variable, "numElements":1}), "dynamic":False, "depth":1})
                 variable_name = DelayGraphTransformer.variable_name(edge=edge)
                 timing_variables[variable_name] = tuple()
-                for next_stage in pipeline.getNextStages(stage):
+                for next_stage in chain(stage.getNextStages(), stage.getFirstSubStages()):
                     assert next_stage.capacity == 1
                     next_stages.append(next_stage)
                     next_timing_variable = next_stage.name
@@ -52,10 +55,11 @@ class PipelineDescription(dotdict):
 
 class InputVector(dotdict):
 
-    def merge(self, other:'dotdict'):
+    def merge(self, other:'dotdict') -> Self:
         for name, value in other.items():
             trimmed = name.replace('o_', '')
             self[trimmed] = DelayVariable('', value)
+        return self
 
 class InputVectorGenerator:
 
@@ -63,7 +67,6 @@ class InputVectorGenerator:
         print()
         print("-- GENERATOR: INPUT_VECTOR_GENERATOR --")
         assert isinstance(structural_variant, Variant)
-        assert isinstance(delay_graph, DelayGraph)
 
         self.structural_variant = structural_variant
         self.delay_graph  = delay_graph
@@ -78,9 +81,9 @@ class InputVectorGenerator:
         if self.verbose:
             print(f" > assuming all registers are available")
         for variable_name in self.delay_graph.inputs():
-            is_register = re.search(r"^r\d+$", variable_name)
+            is_register = re.search(r"^(r\d+)", variable_name)
             if is_register:
-                self.input_vector[variable_name] = self._zero_delay
+                self.input_vector[is_register.group(1).lower()] = self._zero_delay
         return self
 
     def assume_fix_dynamic_delays(self, value=1):
@@ -88,14 +91,14 @@ class InputVectorGenerator:
             print(f" > assuming all dynamic delays = {value}")
         assert value > 0, "dynamic delays are expected to be > 1"
         for variable_name in self.delay_graph.dynamic_variables():
-            self.__assume_input_value(variable_name, self._zero_delay.added(value))
+            self.__assume_input_value(variable_name.lower(), self._zero_delay.added(value))
         return self
 
     def assume_pc_available(self):
         """
         Replaces all instances of pc with a zero delay.
         """
-        pcs = [name for name in self.delay_graph.inputs() if "pc" in name.lower()]
+        pcs = [name.lower() for name in self.delay_graph.inputs() if "pc" in name.lower()]
         # TODO: how to handle multiple pc inputs?
         assert len(pcs) == 1, f"  > WARNING: found multiple inputs which could map to 'pc': {", ".join(pcs)}"
         for pc in pcs:

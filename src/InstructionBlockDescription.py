@@ -1,5 +1,7 @@
 import re
+import json
 from typing import List
+from objprint import op
 
 from src.Common import dotdict, Print
 
@@ -45,11 +47,12 @@ class InstructionBlockDescription:
     def __init__(self, name:str, starting_address:int=0x0):
         self.name = name
         self.starting_address = starting_address
+        self.weight = None
         self.instructions = []
 
     def __str__(self) -> str:
-        return f"code block '{self.name}' ({hex(self.starting_address)}), {len(self.instructions)} instructions:\n " + \
-                "\n ".join(f"{" " * Print.indent}{(instr.address - self.starting_address) // 4:>3}. {instr}" for instr in self.instructions)
+        return f"code block '{self.name}' ({hex(self.starting_address)}), {len(self.instructions)} instructions, {f"{self.weight * 100:.2f}% weight" if self.weight else ""}:\n " + \
+                "\n ".join(f"{" " * Print.indent}{idx:>3}. {instr}" for idx, instr in enumerate(self.instructions))
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -89,6 +92,8 @@ class InstructionBlockDescription:
             address = re.search(r"0x[a-z0-9]{7}\s", raw_instructions)
             if address:
                 address = int(address.group().strip(), 16)
+                if len(desc.instructions) == 0 and address_start == 0:
+                    desc.starting_address = address
             elif not printed:
                 print(f"{" " * Print.indent}> WARNING: cannot determine pc of instruction (instr. idx = {len(desc.instructions)})")
                 printed = True
@@ -101,7 +106,19 @@ class InstructionBlockDescription:
     @staticmethod
     def load_from_files(files:List['pathlib.Path']):
         descs = []
+        weights = {}
         print(" > loading from files...")
+        # read metadata
+        if len(files) == 1 and files[0].name.endswith(".json"):
+            [file] = files
+            path = file.parent
+            with open(file, "r") as f:
+                data = json.load(f)
+            bbs = list(data)
+            files   = [ path / bb["name"] for bb in bbs ]
+            weights = { bb["name"] : bb["weight"] for bb in bbs }
+            assert all(0 <= w <= 1 for w in weights.values())
+        # parse files
         for file in files:
             print(f"  > loading from file '{file.name}'...", type(file))
             assert file.exists()
@@ -109,9 +126,11 @@ class InstructionBlockDescription:
                 address_start = int(file.stem, 16)
             except ValueError:
                 address_start = 0
-            with open(file) as f:
+            with open(file, "r") as f:
                 raw_instructions = f.readlines()
                 desc = InstructionBlockDescription.parse_stringlist(raw_instructions, name=file.stem, address_start=address_start)
+                if file.name in weights:
+                    desc.weight = weights[file.name]
                 print("   >", desc)
                 descs.append(desc)
         return descs

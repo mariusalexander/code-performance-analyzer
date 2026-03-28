@@ -66,7 +66,7 @@ class DelayGraph:
 
     def outputs(self) -> Dict[str, 'DelayFunctionList']:
         return self._outputs
-        
+
     def output(self, name:str) -> 'DelayFunctionList':
         return self._outputs[name]
 
@@ -107,7 +107,7 @@ class DelayGraph:
         return list(var for var in self._variable_mapping.keys() if var not in self._outputs)
 
     def __register_variable(self, full_name:str, variable_name:str, ignore_duplicates=False) -> None:
-        if not ignore_duplicates and "Xa" not in full_name and "Xb" not in full_name:
+        if variable_name and not ignore_duplicates and "Xa" not in full_name and "Xb" not in full_name:
             assert variable_name not in self._variable_mapping or self._variable_mapping[variable_name] == full_name, \
                    f"Generated duplicate variable name! ('{variable_name}' from '{full_name}' clashes with '{self._variable_mapping[variable_name]}')"
         self._variable_mapping[variable_name] = full_name
@@ -123,6 +123,7 @@ class DelayGraph:
                f"Term of '{variable_name}' contains negative cofactors!"
         assert not any(v.delay < 1 for v in function.iter_coefficients()), \
                f"Term of '{variable_name}' contains invalid cofactors!"
+
 
 class DelayGraphTransformer:
     """Delay Graph"""
@@ -151,6 +152,21 @@ class DelayGraphTransformer:
                 model.variants.append(variant)
         return model
 
+    def transform_block(self, block_function:SchedulingFunction, block_description:'InstructionBlockDescription', symbolic_vars=[]) -> 'DelayGraph':
+        """
+        Transforms a (block) scheduling model into a delay graph.
+        For each scheduling function a dict of its outputs and the respective delay functions (max term) is returned.
+        Setting `unroll_delays` to `True` will yield a delay graph with a depth of one, i.e. no max terms are shared.
+        """
+        print()
+        print("-- TRANSFORM: DELAY_GRAPH_MODEL (SINGLE SCHEDULE) --")
+        self.symbolic_vars = symbolic_vars
+
+        print(f" > Generating delay graph for '{block_function.name}'")
+        with Profile(f"  >"):
+            graph = self.__generateDelayGraphForFunction(block_function, block_description)
+        return graph
+
     def __generateDelayGraphForEachFunction(self, block_variant:Variant, block_descriptions:List[InstructionBlockDescription]) -> 'DelayGraphVariant':
         block_functions = block_variant.getAllSchedulingFunctions()
         variant = DelayGraphVariant(name=block_variant.name)
@@ -158,12 +174,13 @@ class DelayGraphTransformer:
         for block_function in block_functions:
             print(f"  > Generating delay graph for '{block_function.name}'")
             with Profile(f"   >"):
-                graph = self.__generateDelayGraphForFunction(block_variant, block_function, block_descriptions[idx])
+                graph = self.__generateDelayGraphForFunction(block_function, block_descriptions[idx])
                 variant.delay_graphs.append(graph)
             idx += 1
         return variant
 
-    def __generateDelayGraphForFunction(self, block_variant:Variant, block_function:SchedulingFunction, block_description:InstructionBlockDescription):
+    def __generateDelayGraphForFunction(self, block_function:SchedulingFunction, block_description:InstructionBlockDescription):
+        self.block_function = block_function
         graph = DelayGraph(name=block_function.name, code_block=block_description)
 
         # find all root nodes
@@ -214,23 +231,35 @@ class DelayGraphTransformer:
         for in_edge in node.getAllInEdges():
             edge_name = DelayGraphTransformer.__variable_name(in_edge)
             variable  = DelayGraphTransformer.__simplify_variable_name(edge_name)
-            graph.register_input(edge_name, variable)
-            functions.append_static_var(DelayVariable(variable))
+            if self.block_function.input_vector() is not None:
+                variable = self.block_function.input_vector()[variable]
+            else:
+                variable = DelayVariable(variable)
+            graph.register_input(edge_name, variable.name)
+            functions.append_static_var(variable)
         
         is_symbolic = any(name in node.name for name in self.symbolic_vars)
         if is_symbolic:
             variable = DelayGraphTransformer.__simplify_variable_name(node.name)
             # strip identifier in name, to which instruction the node belongs
             variable = variable[0:variable.rindex('_')]
-            graph.register_symbolic_variable(node.name, variable)
-            functions.append_coefficient(DelayVariable(variable))
+            if self.block_function.input_vector() is not None:
+                variable = self.block_function.input_vector()[variable]
+            else:
+                variable = DelayVariable(variable)
+            graph.register_symbolic_variable(node.name, variable.name)
+            functions.append_coefficient(variable)
         elif node.delay != 0:
             functions.plus(node.delay)
 
         if node.resourceModel:
             variable = DelayGraphTransformer.__simplify_variable_name(node.name)
-            graph.register_dynamic_variable(node.name, variable)
-            functions.append_coefficient(DelayVariable(variable))
+            if self.block_function.input_vector() is not None \
+               and variable in self.block_function.input_vector():
+               functions.plus(self.block_function.input_vector()[variable].delay)
+            else:
+                graph.register_dynamic_variable(node.name, variable)
+                functions.append_coefficient(DelayVariable(variable))
 
         return functions.simplified()
 
@@ -260,8 +289,6 @@ class DelayGraphTransformer:
         var_name = prefix
         if edge.dynamic:
             var_name += edge.name
-        elif edge.timingVariable.numElements == 1:
-            var_name += edge.timingVariable.name
         else:
             var_name += f"{edge.timingVariable.name}[{edge.depth}]"
         return var_name

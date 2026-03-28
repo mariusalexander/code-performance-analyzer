@@ -17,11 +17,12 @@ class DelayAnalyzer:
         for name, function in functions.items():
             function = function.simplified()
             function.replace(input_vector)
-            results[name] = function.simplified()
+            results[name] = function.simplified().simplified()
         return results
 
     def print(self, entries):
         function_names = []
+        entries = { key:value for key, value in entries.items() if value is not None }
         for _, functions_dict in entries.items():
             function_names = list(functions_dict.keys())
             break
@@ -31,8 +32,6 @@ class DelayAnalyzer:
             for function_name in function_names:
                 print(f"{" " * old_indent}> node '{function_name}':")
                 for entry_name, functions in entries.items():
-                    if functions is None: 
-                        continue
                     assert function_name in functions, "Incompatible functions!"
                     print(f"{" " * (old_indent + 1)}> {entry_name:<10} => {functions[function_name]}")
 
@@ -42,7 +41,7 @@ class DelayAnalyzer:
             outputs[name] = function_list.evaluate()
         return outputs
 
-    def estimate_cpi(self, pipeline:'PipelineDescription', output_vector:Dict[str, int], num_instructions) -> Tuple[float, str]:
+    def estimate_cpi(self, pipeline:'PipelineDescription', output_vector:Dict[str, int], num_instructions, offset=0) -> Tuple[float, str]:
         start = pipeline.start()
         assert all(isinstance(name, str) and isinstance(value, int) for name, value in output_vector.items()), f"Invalid type, excpected an output_vector (Dict[str, int])"
 
@@ -53,8 +52,8 @@ class DelayAnalyzer:
             if output_name in pipeline:
                 estimations.append(DelayVariable(output_name, value))
 
-        # generate the expected offset for each stage
         pipeline_offsets = {start:0}
+        # generate the expected offset for each stage
         stages = [start]
         while stages:
             next_stages = []
@@ -68,12 +67,19 @@ class DelayAnalyzer:
             stages = next_stages
 
         estimations.sort(key=lambda e: tuple(pipeline.keys()).index(e.name))
+
+        # TODO: properly determine offset for pc-variables?
+        #for output_name, value in output_vector.items():
+        #    if "pc" in output_name:
+        #        estimations.append(DelayVariable(output_name, value - 1))
+
         for e in estimations:
-            e.delay -= pipeline_offsets[e.name]
+            e.delay -= (offset + pipeline_offsets[e.name]) if e.name in pipeline_offsets else offset
+        
         max_val = max(reversed(estimations), key=lambda v: v.delay)
         cpi = max_val.delay / num_instructions
         if self.verbose:
             print(f"   > max({", ".join([f"{e.name}+{e.delay}" for e in estimations])})")
-            print(f"   > \tbb={output_name} \tCPI = {f"{max_val.delay}/{num_instructions}":<10} = {cpi:.3f} \t({max_val.name})")
+            print(f"   > bb={output_name} \tCPI = {f"{max_val.delay}/{num_instructions}":<10} = {cpi:.3f} \t({max_val.name})")
 
         return cpi, max_val
