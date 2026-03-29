@@ -64,6 +64,8 @@ def main():
     args_parser.add_argument("--resolve-later"    , action="store_true", help="Whether to resolve the outputs as a function of the inputs")
     args_parser.add_argument("--dynamic-delays"   , nargs=  1, type=int, default=[None], help="...")
     args_parser.add_argument("--loopback"         , action="store_true", help="...")
+    args_parser.add_argument("--ign-dyn"          , action="store_true", help="Ignore dynamic delays in metadata")
+    args_parser.add_argument("--no-dyn"          , action="store_true", help="Abort if unmatched dynamic delays are present")
     # targets
     args_parser.add_argument("--schedule-graph"   , action="store_true", help="Generates schedule graphs for the generated instruction block schedules (writes to `out-dir`, uses M2-ISA-R-Perf internally)")
     args_parser.add_argument("--delay-graph"      , action="store_true", help="Generates delay graphs for the selected instruction blocks (writes to `out-dir`). (WIP)")
@@ -144,7 +146,7 @@ def main():
 
     # load code blocks from file(s)
     if args.files:
-        descs = InstructionBlockDescription.load_from_files(args.files)
+        descs = InstructionBlockDescription.load_from_files(args.files, ignore_variants=args.ign_dyn, verbose=args.verbose)
     # load example code blocks
     elif args.examples:
         descs = Examples.test_vectors(pattern=args.examples)
@@ -167,7 +169,8 @@ def main():
         for variant in block_schedule.getAllVariants():
             [struct_variant] = tuple(filter(lambda v: v.name == variant.name, struct_model.variants))
             pipeline = PipelineDescription.generate(struct_variant)
-
+            
+            idx = 0
             for block_function in variant.getAllSchedulingFunctions():
                 input_vector = InputVectorGenerator(struct_variant, block_function, verbose=args.verbose) \
                                 .assume_all_registers_available() \
@@ -175,10 +178,17 @@ def main():
                                 .assume_perfect_pipeline(pipeline=pipeline)
                 if resolve_dynamic_delays:
                     input_vector.assume_fix_dynamic_delays(value=args.dynamic_delays)
+                elif descs[idx].dynamic_vars:
+                    input_vector.apply_dynamic_delays(descs[idx].dynamic_vars)
+                elif block_function.dynamic_variables() and args.no_dyn:
+                    print("Error: Unmatched dynamic delays:", block_function.name)
+                    for name in block_function.dynamic_variables():
+                        print(" >", name)
+                    raise RuntimeError("Unmatched dynamic delays!")
                 input_vector = input_vector.finalize()
 
-                print(" > Input Vector", input_vector)
                 block_function.set_input_vector(input_vector)
+                idx += 1
 
     delay_model = DelayGraphTransformer(verbose=args.verbose).transform(block_schedule, descs, symbolic_vars=args.symbolic_vars)
 
@@ -222,7 +232,7 @@ def main():
 
             # can only evaluate term if there are no symbolic variables
             output_vector_1st_iter = None
-            if not args.symbolic_vars and len(block_function.dynamic_variables()) == 0:
+            if not args.symbolic_vars and all(dyn.lower() in input_vector for dyn in block_function.dynamic_variables()):
                 output_vector_1st_iter = analyzer.evaluate(applied_functions)
             elif args.cpi:
                 raise RuntimeError("Failed to determince CPI, graph contains unknown delays!")
@@ -254,7 +264,7 @@ def main():
                 cpi, stage = analyzer.estimate_cpi(pipeline, output_vector, num_instructions, offset=input_vector[pipeline.start()].delay)
                 if args.print_bb:
                     print(delay_graph.code_block)
-                print(variant.name.ljust(30), delay_graph.name.ljust(20), "CPI:", cpi, stage, len(delay_graph.code_block.instructions))
+                print(variant.name.ljust(30), delay_graph.name.ljust(20), f"CPI: {cpi:>8.6f} ({stage.name:>5}={stage.delay:>3})\t{len(delay_graph.code_block.instructions):>3} instructions, rel weight: {delay_graph.code_block.weight:.5f}%")
                 
                 assert delay_graph.name not in results[variant.name], "Duplicate result entry!"
                 results[variant.name][delay_graph.name] = dotdict({

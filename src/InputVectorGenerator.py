@@ -64,8 +64,10 @@ class InputVector(dotdict):
 class InputVectorGenerator:
 
     def __init__(self, structural_variant:Variant, delay_graph:DelayGraph, verbose=True):
-        print()
-        print("-- GENERATOR: INPUT_VECTOR_GENERATOR --")
+        if verbose:
+            print()
+            print("-- GENERATOR: INPUT_VECTOR_GENERATOR --")
+        
         assert isinstance(structural_variant, Variant)
 
         self.structural_variant = structural_variant
@@ -89,9 +91,20 @@ class InputVectorGenerator:
     def assume_fix_dynamic_delays(self, value=1):
         if self.verbose:
             print(f" > assuming all dynamic delays = {value}")
-        assert value > 0, "dynamic delays are expected to be > 1"
+        assert value > 0, "dynamic delays are expected to be >= 1"
         for variable_name in self.delay_graph.dynamic_variables():
             self.__assume_input_value(variable_name.lower(), self._zero_delay.added(value))
+        return self
+
+    def apply_dynamic_delays(self, dynamic_vars):
+        if self.verbose:
+            print(f" > assuming dynamic delays: {", ".join(f"{n}={v}" for n,v in dynamic_vars.items())}")
+        assert all(v > 0 for v in dynamic_vars.values()), "dynamic delays are expected to be >= 1"
+        for variable_name in self.delay_graph.dynamic_variables():
+            for dynamic_var, value in dynamic_vars.items():
+                if dynamic_var in variable_name:
+                    self.__assume_input_value(variable_name.lower(), self._zero_delay.added(value))
+                    break
         return self
 
     def assume_pc_available(self):

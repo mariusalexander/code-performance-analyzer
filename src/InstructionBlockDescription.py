@@ -1,5 +1,6 @@
 import re
 import json
+import copy
 from typing import List
 from objprint import op
 
@@ -48,11 +49,12 @@ class InstructionBlockDescription:
         self.name = name
         self.starting_address = starting_address
         self.weight = None
+        self.dynamic_vars = {}
         self.instructions = []
 
     def __str__(self) -> str:
         return f"code block '{self.name}' ({hex(self.starting_address)}), {len(self.instructions)} instructions, {f"{self.weight * 100:.2f}% weight" if self.weight else ""}:\n " + \
-                "\n ".join(f"{" " * Print.indent}{idx:>3}. {instr}" for idx, instr in enumerate(self.instructions))
+                "\n ".join(f"{" " * Print.indent}{idx:>3}. {instr}" for idx, instr in enumerate(self.instructions)) + (f"\n{self.dynamic_vars}" if self.dynamic_vars else "")
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -104,9 +106,10 @@ class InstructionBlockDescription:
         return desc
 
     @staticmethod
-    def load_from_files(files:List['pathlib.Path']):
+    def load_from_files(files:List['pathlib.Path'], ignore_variants=False, verbose=True):
         descs = []
         weights = {}
+        variants = {}
         print(" > loading from files...")
         # read metadata
         if len(files) == 1 and files[0].name.endswith(".json"):
@@ -117,10 +120,12 @@ class InstructionBlockDescription:
             bbs = list(data)
             files   = [ path / bb["name"] for bb in bbs ]
             weights = { bb["name"] : bb["weight"] for bb in bbs }
+            if not ignore_variants:
+                variants = { bb["name"] : bb["dynamic_delays"] for bb in bbs if "dynamic_delays" in bb}
             assert all(0 <= w <= 1 for w in weights.values())
         # parse files
         for file in files:
-            print(f"  > loading from file '{file.name}'...", type(file))
+            print(f"  > loading from file '{file.name}'...")
             assert file.exists()
             try:
                 address_start = int(file.stem, 16)
@@ -131,6 +136,21 @@ class InstructionBlockDescription:
                 desc = InstructionBlockDescription.parse_stringlist(raw_instructions, name=file.stem, address_start=address_start)
                 if file.name in weights:
                     desc.weight = weights[file.name]
-                print("   >", desc)
+                if file.name in variants:
+                    idx = 0
+                    for variant in variants[file.name]:
+                        desc_v = copy.deepcopy(desc)
+                        desc_v.name += f"_v{idx}"
+                        assert desc_v.weight > 0
+                        desc_v.weight *= variant["weight"]
+                        for variable in variant["variables"]:
+                            desc_v.dynamic_vars |= variable
+                        if verbose: 
+                            print("   >", desc_v, "(variant)")
+                        descs.append(desc_v)
+                        idx += 1
+                    continue
+                if verbose: 
+                    print("   >", desc)
                 descs.append(desc)
         return descs
