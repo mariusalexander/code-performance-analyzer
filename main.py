@@ -172,7 +172,7 @@ def main():
             
             idx = 0
             for block_function in variant.getAllSchedulingFunctions():
-                input_vector = InputVectorGenerator(struct_variant, block_function, verbose=args.verbose) \
+                input_vector = InputVectorGenerator(struct_variant, block_function, verbose=True) \
                                 .assume_all_registers_available() \
                                 .assume_pc_available() \
                                 .assume_perfect_pipeline(pipeline=pipeline)
@@ -235,6 +235,9 @@ def main():
             if not args.symbolic_vars and all(dyn.lower() in input_vector for dyn in block_function.dynamic_variables()):
                 output_vector_1st_iter = analyzer.evaluate(applied_functions)
             elif args.cpi:
+                print(f"Error: Unknown delays! ({block_function.name})\n", input_vector)
+                for v in (dyn.lower() for dyn in block_function.dynamic_variables() if dyn.lower() not in input_vector):
+                    print(" >", v)
                 raise RuntimeError("Failed to determince CPI, graph contains unknown delays!")
             elif args.loopback:
                 raise RuntimeError("Failed to perform loopback, graph contains unknown delays!")
@@ -289,13 +292,10 @@ def main():
     for variant_name in results:
         result = results[variant_name]
         total_weight = sum(bb.weight for bb in result.values() if bb.weight is not None)
-        if len(result) == 1:
-            print(variant_name.ljust(30), "total CPI:", tuple(result.values())[0].cpi)
-            continue
         if total_weight == 0:
             print("WARNING: Cannot determine total CPI, missing weights for basic blocks!")
             continue
-        print(variant_name.ljust(30), "total CPI:", str(sum((bb.cpi * bb.weight / total_weight) for bb in result.values())).ljust(20), f"total weight: {total_weight * 100:.3f}%")
+        print(variant_name.ljust(30), f"total CPI: {sum((bb.cpi * bb.weight / total_weight) for bb in result.values()):.6f} \ttotal weight: {total_weight * 100:.3f}%")
 
 if __name__ == "__main__":
     main()

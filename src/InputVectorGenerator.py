@@ -67,6 +67,7 @@ class InputVectorGenerator:
         if verbose:
             print()
             print("-- GENERATOR: INPUT_VECTOR_GENERATOR --")
+            print(f" > {delay_graph.name}")
         
         assert isinstance(structural_variant, Variant)
 
@@ -81,7 +82,7 @@ class InputVectorGenerator:
         Replaces all input registers with a zero delay -> initial availability of registers has no effect.
         """
         if self.verbose:
-            print(f" > assuming all registers are available")
+            print(f"  > assuming all registers are available")
         for variable_name in self.delay_graph.inputs():
             is_register = re.search(r"^(r\d+)", variable_name)
             if is_register:
@@ -90,7 +91,7 @@ class InputVectorGenerator:
 
     def assume_fix_dynamic_delays(self, value=1):
         if self.verbose:
-            print(f" > assuming all dynamic delays = {value}")
+            print(f"  > assuming all dynamic delays = {value}")
         assert value > 0, "dynamic delays are expected to be >= 1"
         for variable_name in self.delay_graph.dynamic_variables():
             self.__assume_input_value(variable_name.lower(), self._zero_delay.added(value))
@@ -98,7 +99,7 @@ class InputVectorGenerator:
 
     def apply_dynamic_delays(self, dynamic_vars):
         if self.verbose:
-            print(f" > assuming dynamic delays: {", ".join(f"{n}={v}" for n,v in dynamic_vars.items())}")
+            print(f"  > assuming dynamic delays: {", ".join(f"{n}={v}" for n,v in dynamic_vars.items())}")
         assert all(v > 0 for v in dynamic_vars.values()), "dynamic delays are expected to be >= 1"
         for variable_name in self.delay_graph.dynamic_variables():
             for dynamic_var, value in dynamic_vars.items():
@@ -113,7 +114,7 @@ class InputVectorGenerator:
         """
         pcs = [name.lower() for name in self.delay_graph.inputs() if "pc" in name.lower()]
         # TODO: how to handle multiple pc inputs?
-        assert len(pcs) == 1, f"  > WARNING: found multiple inputs which could map to 'pc': {", ".join(pcs)}"
+        assert len(pcs) == 1, f"   > WARNING: found multiple inputs which could map to 'pc': {", ".join(pcs)}"
         for pc in pcs:
             self.__assume_input_value(pc, self._zero_delay)
         return self
@@ -142,11 +143,11 @@ class InputVectorGenerator:
     def __assume_input_value(self, variable_name, variable):
         self.input_vector[variable_name] = variable
         if self.verbose:
-            print(f" > assuming {variable_name:<5} = {variable}")
+            print(f"  > assuming {variable_name:<5} = {variable}")
 
     def finalize(self):
         if self.verbose:
-            print( " > generated:", self.input_vector)
+            print( "  > generated:", self.input_vector)
             unresolved = ", ".join(v for v in self.delay_graph.all_variables() if v not in self.input_vector)
-            print( " > unresolved variables:", unresolved if len(unresolved) > 0 else None)
+            print( "  > unresolved variables:", unresolved if len(unresolved) > 0 else None)
         return self.input_vector
