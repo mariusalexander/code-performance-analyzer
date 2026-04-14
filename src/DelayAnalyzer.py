@@ -43,7 +43,8 @@ class DelayAnalyzer:
 
     def estimate_cpi(self, pipeline:'PipelineDescription', output_vector:Dict[str, int], num_instructions, offset=0) -> Tuple[float, str]:
         start = pipeline.start()
-        assert all(isinstance(name, str) and isinstance(value, int) for name, value in output_vector.items()), f"Invalid type, excpected an output_vector (Dict[str, int])"
+        assert all(isinstance(name, str) and (isinstance(value, int) or isinstance(value, float)) for name, value in output_vector.items()), \
+               f"Invalid type, excpected an output_vector (Dict[str, int])"
 
         # accumulate timing variables for each stage in the pipeline
         estimations = []

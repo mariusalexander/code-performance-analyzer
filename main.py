@@ -54,6 +54,7 @@ def main():
     args_parser.add_argument("-v", "--verbose"    , action="store_true", help="Enables verbose output.")
     args_parser.add_argument("-p", "--print"      , action="store_true", help="Prints the results.")
     args_parser.add_argument("-b", "--print-bb"   , action="store_true", help="Prints the code_block.")
+    args_parser.add_argument("-i", "--print-iv"   , action="store_true", help="Prints the iput vectors.")
     # inputs
     args_parser.add_argument("--tests"            , action="store_true", help="Executes all unittests.")
     args_parser.add_argument("--examples"         , nargs='?', type=str, const='*', help="Loads example basic blocks. A Wildcard pattern can be used to load only certain tests.")
@@ -65,7 +66,7 @@ def main():
     args_parser.add_argument("--dynamic-delays"   , nargs=  1, type=int, default=[None], help="...")
     args_parser.add_argument("--loopback"         , action="store_true", help="...")
     args_parser.add_argument("--ign-dyn"          , action="store_true", help="Ignore dynamic delays in metadata")
-    args_parser.add_argument("--no-dyn"          , action="store_true", help="Abort if unmatched dynamic delays are present")
+    args_parser.add_argument("--no-dyn"           , action="store_true", help="Abort if unmatched dynamic delays are present")
     # targets
     args_parser.add_argument("--schedule-graph"   , action="store_true", help="Generates schedule graphs for the generated instruction block schedules (writes to `out-dir`, uses M2-ISA-R-Perf internally)")
     args_parser.add_argument("--delay-graph"      , action="store_true", help="Generates delay graphs for the selected instruction blocks (writes to `out-dir`). (WIP)")
@@ -172,7 +173,7 @@ def main():
             
             idx = 0
             for block_function in variant.getAllSchedulingFunctions():
-                input_vector = InputVectorGenerator(struct_variant, block_function, verbose=True) \
+                input_vector = InputVectorGenerator(struct_variant, block_function, verbose=args.print_iv or args.verbose) \
                                 .assume_all_registers_available() \
                                 .assume_pc_available() \
                                 .assume_perfect_pipeline(pipeline=pipeline)

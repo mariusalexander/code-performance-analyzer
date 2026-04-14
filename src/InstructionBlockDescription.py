@@ -53,8 +53,10 @@ class InstructionBlockDescription:
         self.instructions = []
 
     def __str__(self) -> str:
-        return f"code block '{self.name}' ({hex(self.starting_address)}), {len(self.instructions)} instructions, {f"{self.weight * 100:.2f}% weight" if self.weight else ""}:\n " + \
-                "\n ".join(f"{" " * Print.indent}{idx:>3}. {instr}" for idx, instr in enumerate(self.instructions)) + (f"\n{self.dynamic_vars}" if self.dynamic_vars else "")
+        header   = f"code block '{self.name}' (0x{self.starting_address:08x}), {len(self.instructions)} instructions, {f"{self.weight * 100:2.2f}% weight" if self.weight else ""}:"
+        instrs   = "\n ".join(f"{" " * Print.indent}{idx:>3}. {instr}" for idx, instr in enumerate(self.instructions))
+        dyn_vars = "\n ".join(f"{" " * Print.indent} > {name}: {value:.8f}" for name,value in self.dynamic_vars.items())
+        return f"{header}\n {instrs}" + (f"\n {" " * Print.indent}with:\n {dyn_vars}" if self.dynamic_vars else "")
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -88,10 +90,10 @@ class InstructionBlockDescription:
     def parse_stringlist(raw_instructions:List['str'], name:str, address_start:int) -> 'InstructionBlockDescription':
         desc = InstructionBlockDescription(name, address_start)
         printed = False
-        for raw_instructions in raw_instructions:
-            if len(raw_instructions.strip()) == 0:
+        for raw_instruction in raw_instructions:
+            if len(raw_instruction.strip()) == 0:
                 continue
-            address = re.search(r"0x[a-z0-9]{7}\s", raw_instructions)
+            address = re.search(r"^0x[a-z0-9]{8}\s", raw_instruction)
             if address:
                 address = int(address.group().strip(), 16)
                 if len(desc.instructions) == 0 and address_start == 0:
@@ -99,8 +101,8 @@ class InstructionBlockDescription:
             elif not printed:
                 print(f"{" " * Print.indent}> WARNING: cannot determine pc of instruction (instr. idx = {len(desc.instructions)})")
                 printed = True
-            instr_name = re.search(r"(^|\s)([a-z][a-z0-9]*?)+\s", raw_instructions).group().strip()
-            registers  = re.findall(r"([a-z][a-z0-9]+)=(\d+)", raw_instructions)
+            instr_name = re.search(r"(^|\s)([a-z][a-z0-9]*?)+\s", raw_instruction).group().strip()
+            registers  = re.findall(r"([a-z][a-z0-9]+)=(\d+)", raw_instruction)
             registers  = { r[0]:int(r[1]) for r in registers }
             desc.addInstruction(instr_name, address=address, **registers)
         return desc
@@ -141,12 +143,11 @@ class InstructionBlockDescription:
                     for variant in variants[file.name]:
                         desc_v = copy.deepcopy(desc)
                         desc_v.name += f"_v{idx}"
-                        assert desc_v.weight > 0
-                        desc_v.weight *= variant["weight"]
-                        for variable in variant["variables"]:
-                            desc_v.dynamic_vars |= variable
-                        if verbose: 
+                        desc_v.weight      *= variant["weight"]
+                        desc_v.dynamic_vars = variant["variables"]
+                        if verbose:
                             print("   >", desc_v, "(variant)")
+                        assert desc_v.weight > 0
                         descs.append(desc_v)
                         idx += 1
                     continue

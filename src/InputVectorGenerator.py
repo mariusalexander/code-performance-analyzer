@@ -1,4 +1,5 @@
 import re
+import fnmatch
 from objprint import op
 from typing import List, Dict, Self
 from itertools import chain
@@ -103,7 +104,7 @@ class InputVectorGenerator:
         assert all(v > 0 for v in dynamic_vars.values()), "dynamic delays are expected to be >= 1"
         for variable_name in self.delay_graph.dynamic_variables():
             for dynamic_var, value in dynamic_vars.items():
-                if dynamic_var in variable_name:
+                if fnmatch.fnmatch(variable_name, dynamic_var):
                     self.__assume_input_value(variable_name.lower(), self._zero_delay.added(value))
                     break
         return self
