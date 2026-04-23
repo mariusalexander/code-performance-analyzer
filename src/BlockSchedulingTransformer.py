@@ -106,7 +106,6 @@ class BlockSchedulingTransformer:
         """
         print(f"  > Generating block scheduling function for '{block_desc.name}'...")
 
-
         # create block scheudling function
         block_function = block_variant.createSchedulingFunction(block_desc.name, self._id)
         self._id += 1
@@ -125,9 +124,8 @@ class BlockSchedulingTransformer:
         for reg_model in self._register_models:
             mappings[reg_model] = { }
         # mappings for branch prediction
-        # TODO: infer connector mapping automatically
         for pred_model in self._branch_prediction_models:
-            mappings[pred_model] = { c:None for c in ["Pc", "Pc_p", "Pc_np"] }
+            mappings[pred_model] = { }
 
         sched_functions = sched_variant.getAllSchedulingFunctions()
 
@@ -138,10 +136,6 @@ class BlockSchedulingTransformer:
             # find instruction of BB in base scheduling model and append nodes to block function
             sched_function = sched_variant.getSchedulingFunction(block_instr.name)
             self.__appendSchedulingFunction(sched_function, block_function, block_desc, block_idx, mappings)
-
-            #op("[FINAL] Timing Variables:", { var:[ n.name if n else None for n in mappings.timingVariables[var] ] for var in mappings.timingVariables})
-            #op("[FINAL] Register Mapping:", { reg: mappings.regModel[reg].name if mappings.regModel[reg] else None for reg in mappings.regModel if mappings.regModel[reg]})
-            #op("[FINAL] Clobber Mapping: ", { reg: mappings.clobberModel[reg].name if mappings.clobberModel[reg] else None for reg in mappings.clobberModel if mappings.clobberModel[reg]})
 
         self.__resolveOutgoingEdges(block_function, mappings)
 
@@ -254,7 +248,7 @@ class BlockSchedulingTransformer:
     def __resolveTimingVariableOutEdge(self, block_node:Node, edge:StaticEdge, block_idx:int, mappings):
         timing_variable = edge.timingVariable.name
         history = mappings[timing_variable]
-        assert edge.depth == 1, f"Expected outgoing edges to have a depth == 1 (acutal depth: {out_edge.depth})!"
+        assert edge.depth == 1, f"Expected outgoing edges to have a depth == 1 (actual depth: {out_edge.depth})!"
         # update and right-shift history
         if self.verbose:
             print(f"    > Resolved timing variable: Node '{block_node.name}' sets '{timing_variable}'")
@@ -323,9 +317,7 @@ class BlockSchedulingTransformer:
     def __resolveBranchPredictionInEdge(self, block_node:Node, edge:StaticEdge, block_desc:InstructionBlockDescription, block_idx:int, mappings, model:str):
         instr = block_desc.instructions[block_idx]
         pred_model = mappings[model]
-        last_node  = pred_model[edge.name]
-        # TODO: resolve hard coded logic
-        assert edge.name == "Pc"
+        last_node  = pred_model[edge.name] if edge.name in pred_model else None
         if not last_node:
             if self.verbose:
                 print(f"    > Resolved {model}: Node '{block_node.name}' uses '{edge.name}'")
@@ -339,14 +331,14 @@ class BlockSchedulingTransformer:
     def __resolveBranchPredictionOutEdge(self, block_node:Node, edge:StaticEdge, block_desc:InstructionBlockDescription, block_idx:int, mappings, model:str):
         instr = block_desc.instructions[block_idx]
         pred_model = mappings[model]
-        # TODO: resolve hard coded logic
-        assert edge.name in ["Pc_p", "Pc_np"]
         if self.verbose:
             print(f"    > Resolved {model}: Node '{block_node.name}' sets 'Pc' ({edge.name})")
         if edge.name == "Pc_np":
             if model == "dynBranchPredModel":
                 return
             if model == "staBranchPredModel":
+                # TODO: resolve hard coded logic
+                assert edge.name in ["Pc_p", "Pc_np"], f"Unkown connector '{edge.name}'"
                 match self.brpred_option:
                     # the pc_np path has no effect if branch prediction predicts correctly.
                     case "sta_never_taken":
@@ -363,18 +355,18 @@ class BlockSchedulingTransformer:
                         print(f"   > INFO: adding control hazard: 'never taken' mispredicted (instr. idx {block_idx})")
                     case _:
                         return
-        # pc_p and pc_np become the new pc inputs
-        pred_model["Pc"]      = block_node
+                # pc_p and pc_np become the new pc inputs
+                pred_model["Pc"] = block_node
         pred_model[edge.name] = block_node
 
     def __resolveOutgoingBranchPredictions(self, mappings):
         for model in self._branch_prediction_models:
             mapping = mappings[model]
             for connector in mapping:
-                # TODO: resolve hard coded logic
-                # pc path is input only
-                if connector == "Pc":
-                    continue
+                ## TODO: resolve hard coded logic
+                ## pc path is input only
+                #if connector == "Pc":
+                #    continue
                 block_node = mapping[connector]
                 if not block_node:
                     continue

@@ -17,6 +17,7 @@ from src.DelayGraphViewer import DelayGraphViewer
 from src.DelayAnalyzer import DelayAnalyzer
 from src.InputVectorGenerator import InputVector, InputVectorGenerator, PipelineDescription
 from src.MaxPlusAlgebra import DelayVariable, DelayFunction_v2, DelayFunctionList
+from src.SequenceAnalyzer import SequenceAnalyzer
 
 import tests.TestVectors as Examples
 import tests.UnitTests as UnitTests
@@ -73,6 +74,9 @@ def main():
     args_parser.add_argument("--cpi"              , nargs='?', type=valid_path, const=True, help="Estimates the CPI for each instruction block. Prints to stdout. If given a file name exports results to file")
     args_parser.add_argument("--exit"             , action="store_true", help="Exits the programm before estimating the CPI.")
     args_parser.add_argument("--suffix"           , nargs=  1, type=str, default=[None], help="...")
+
+    args_parser.add_argument("-s", "--sequenced"  , action="store_true", help="Analyze basic blocks ")
+    
     args = args_parser.parse_args()
 
     if isinstance(args.out_dir, list):
@@ -160,6 +164,14 @@ def main():
         print(" > ERROR: No code blocks to generate schedule models!")
         exit(1)
 
+    if args.sequenced:
+        sequence_model = SequenceAnalyzer(verbose=args.verbose, 
+                                         default_dynamic_delay=args.dynamic_delays) \
+            .analyze_all_variants(schedule_model, struct_model, descs)
+
+        op(sequence_model)
+        exit(0)
+
     resolve_dynamic_delays = args.dynamic_delays is not None
     block_schedule = BlockSchedulingTransformer(verbose=args.verbose).transform(schedule_model, descs, brpred_option=args.brpred)
 
@@ -191,7 +203,9 @@ def main():
                 block_function.set_input_vector(input_vector)
                 idx += 1
 
-    delay_model = DelayGraphTransformer(verbose=args.verbose).transform(block_schedule, descs, symbolic_vars=args.symbolic_vars)
+    delay_model = DelayGraphTransformer(verbose=args.verbose, 
+                                        default_dynamic_delay=args.dynamic_delays) \
+        .transform(block_schedule, descs, symbolic_vars=args.symbolic_vars)
 
     ### Backends ###
 

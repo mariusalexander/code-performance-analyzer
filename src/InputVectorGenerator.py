@@ -29,7 +29,7 @@ class PipelineDescription(dotdict):
         return filtered[0]
 
     @staticmethod
-    def generate(structural_variant:Variant):
+    def generate(structural_variant:Variant, simplify_variable_name=True):
         timing_variables = PipelineDescription()
         pipeline = structural_variant.getPipeline()
         stages   = pipeline.getFirstStages()
@@ -37,20 +37,28 @@ class PipelineDescription(dotdict):
         while stages:
             next_stages = []
             for stage in stages:
-                assert stage.capacity == 1
-                timing_variable = stage.name
-                # TODO: this is hacky -> access variable of stage 
-                # name without accessing delay graph
-                edge = dotdict({"timingVariable":dotdict({"name":timing_variable, "numElements":1}), "dynamic":False, "depth":1})
-                variable_name = DelayGraphTransformer.variable_name(edge=edge)
-                timing_variables[variable_name] = tuple()
-                for next_stage in chain(stage.getNextStages(), stage.getFirstSubStages()):
-                    assert next_stage.capacity == 1
-                    next_stages.append(next_stage)
-                    next_timing_variable = next_stage.name
-                    edge.timingVariable.name = next_timing_variable
-                    next_variable_name = DelayGraphTransformer.variable_name(edge=edge)
-                    timing_variables[variable_name] = timing_variables[variable_name] + (next_variable_name,)
+                #for depth in [1, stage.capacity] if stage.capacity > 1 else [1]:
+                    depth = 1
+                    #assert stage.capacity == 1
+                    timing_variable = stage.name
+                    # TODO: this is hacky -> access variable of stage 
+                    # name without accessing delay graph
+                    if simplify_variable_name:
+                        edge = dotdict({"timingVariable":dotdict({"name":timing_variable, "numElements":1}), "dynamic":False, "depth":depth})
+                        variable_name = DelayGraphTransformer.variable_name(edge=edge)
+                    else:
+                        variable_name = timing_variable
+                    timing_variables[variable_name] = tuple()
+                    for next_stage in chain(stage.getNextStages(), stage.getFirstSubStages()):
+                        #assert next_stage.capacity == 1
+                        next_stages.append(next_stage)
+                        next_timing_variable = next_stage.name
+                        if simplify_variable_name:
+                            edge.timingVariable.name = next_timing_variable
+                            next_variable_name = DelayGraphTransformer.variable_name(edge=edge)
+                        else:
+                            next_variable_name = next_timing_variable
+                        timing_variables[variable_name] = timing_variables[variable_name] + (next_variable_name,)
             stages = next_stages
         return timing_variables
 
@@ -115,16 +123,17 @@ class InputVectorGenerator:
         """
         pcs = [name.lower() for name in self.delay_graph.inputs() if "pc" in name.lower()]
         # TODO: how to handle multiple pc inputs?
-        assert len(pcs) == 1, f"   > WARNING: found multiple inputs which could map to 'pc': {", ".join(pcs)}"
+        #assert len(pcs) == 1, f"   > WARNING: found multiple inputs which could map to 'pc': {", ".join(pcs)}"
         for pc in pcs:
             self.__assume_input_value(pc, self._zero_delay)
         return self
 
     def assume_perfect_pipeline(self, pipeline:'PipelineDescription', use_zero_delay=False):
         start = pipeline.start()
-        self.__assume_input_value(start, self._zero_delay)
+        for s in start:
+            self.__assume_input_value(s, self._zero_delay)
 
-        stages = [start]
+        stages = [*start]
         while stages:
             next_stages = []
             for stage in stages:

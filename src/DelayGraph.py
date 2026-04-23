@@ -128,9 +128,10 @@ class DelayGraph:
 class DelayGraphTransformer:
     """Delay Graph"""
 
-    def __init__(self, verbose=True):
+    def __init__(self, verbose=True, default_dynamic_delay=None):
         # whether to unroll all delay functions
         self.verbose       = verbose
+        self.default_dynamic_delay = default_dynamic_delay
         self.symbolic_vars = []
 
     def transform(self, block_model:SchedulingModel, block_descriptions:List[InstructionBlockDescription], symbolic_vars=[]) -> 'DelayGraphModel':
@@ -257,6 +258,8 @@ class DelayGraphTransformer:
             if self.block_function.input_vector() is not None \
                and variable in self.block_function.input_vector():
                functions.plus(self.block_function.input_vector()[variable].delay)
+            if self.default_dynamic_delay is not None:
+               functions.plus(self.default_dynamic_delay)
             else:
                 graph.register_dynamic_variable(node.name, variable)
                 functions.append_coefficient(DelayVariable(variable))

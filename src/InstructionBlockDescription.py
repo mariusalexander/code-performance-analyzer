@@ -35,7 +35,13 @@ class InstructionDescription(dotdict):
             idx = string.rindex(", ")
             string = string[:idx]
         return string
-        
+
+    def is_branch(self):
+        match self.name:
+            case "j" | "jal" | "jalr" | "beq" | "bne" | "blt" | "bltu" | "bge" | "bgeu":
+                return True
+        return False
+
     def __str__(self) -> str:
         return f"{hex(self.address)} {self.name:>8}{self.registers_to_str()}"
 
@@ -48,9 +54,12 @@ class InstructionBlockDescription:
     def __init__(self, name:str, starting_address:int=0x0):
         self.name = name
         self.starting_address = starting_address
-        self.weight = None
-        self.dynamic_vars = {}
-        self.instructions = []
+        # relative weight of the code block for CPI analysis
+        self.weight           = None
+        # dictionary to map dynamic variables to an delay
+        self.dynamic_vars     = {}
+        # list of instructions in code block
+        self.instructions     = []
 
     def __str__(self) -> str:
         header   = f"code block '{self.name}' (0x{self.starting_address:08x}), {len(self.instructions)} instructions, {f"{self.weight * 100:2.2f}% weight" if self.weight else ""}:"
@@ -79,12 +88,7 @@ class InstructionBlockDescription:
         return True
 
     def is_basic_block(self, is_basic_block=True):
-        for instr in self.instructions[:-1]:
-            match instr.name:
-                case "j" | "jal" | "jalr" | "beq" | "bne" | "blt" | "bltu" | "bge" | "bgeu":
-                    # only last instruction may be a branch
-                    return False
-        return True
+        return not any(i.is_branch() for i in self.instructions[:-1])
 
     @staticmethod
     def parse_stringlist(raw_instructions:List['str'], name:str, address_start:int) -> 'InstructionBlockDescription':
@@ -148,10 +152,12 @@ class InstructionBlockDescription:
                         if verbose:
                             print("   >", desc_v, "(variant)")
                         assert desc_v.weight > 0
+                        assert(desc.has_valid_instructions()), f"{desc}"
                         descs.append(desc_v)
                         idx += 1
                     continue
                 if verbose: 
                     print("   >", desc)
+                assert(desc.has_valid_instructions()), f"{desc}"
                 descs.append(desc)
         return descs

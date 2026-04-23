@@ -69,8 +69,9 @@ def test_vectors(pattern=None):
     desc.addInstruction("add" , rd=4, rs1= 1, rs2=11)
     code_blocks.append(desc)
 
-    desc = InstructionBlockDescription("bb_test", 0x000003c4)
-    desc.addInstruction("mul" , rd=1, rs1=10, rs2=11)
+    desc = InstructionBlockDescription("bb_isaac", 0x000003c4)
+    desc.addInstruction("custom4" , rd=1, rs1=10, rs2=11)
+    desc.addInstruction("add" , rd=2, rs1=12, rs2=13)
     desc.addInstruction("mul" , rd=2, rs1=12, rs2=13)
     code_blocks.append(desc)
 

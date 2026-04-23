@@ -56,3 +56,5 @@ class Print:
         def __exit__(self, *args):
             Print.indent = self.old_indent
 
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
