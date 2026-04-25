@@ -13,6 +13,44 @@ from src.InstructionBlockDescription import InstructionBlockDescription
 from meta_models.scheduling_model.SchedulingModel import SchedulingModel, Variant as SchedVariant, SchedulingFunction, Node, StaticEdge
 from meta_models.structural_model.StructuralModel import StructuralModel, Variant as StructVariant
 
+
+def get_pipeline_timings(next_stages, used_stages, cc=1):
+    stages   = {}
+    while next_stages:
+        queue        = deque(next_stages)
+        next_stages  = []
+        cc_increment = cc
+        while queue:
+            stage = queue.popleft()
+            if stage.name not in used_stages:
+                continue
+
+            stage_depth = 0
+            for subpipeline in stage.getPipelines():
+                substages = subpipeline.getFirstStages()
+                for substage in substages:
+                    if substage.name not in used_stages:
+                        continue
+                    assert stage_depth == 0, f"Multiple sub-pipleines for stage '{stage.name}' are active at the same time!"
+                    results = get_pipeline_timings(next_stages=[substage], used_stages=used_stages, cc=cc)
+                    stage_depth = results.depth
+                    stages     |= results.stages
+                    break
+            
+            if stage_depth > 0:
+                current_cc  = stage_depth - 1
+            else:
+                current_cc = cc
+
+            stages[stage.name] = current_cc
+            cc_increment = max(cc_increment, current_cc)
+
+            next_stages += stage.getNextStages()
+
+        cc = cc_increment + 1
+
+    return dotdict({ "depth": cc, "stages": stages })
+    
 class SequenceTimingModel:
 
     def __init__(self):
@@ -126,13 +164,13 @@ class TimingsPrinter:
 
         self.registers = sorted(set(instr.rd for instr in code_block.instructions if instr.rd is not None))
         self.register_header = self.__register_column({ reg:f"r{reg}" for reg in self.registers })
-        self.timing_vars_entries = { name : len(history) for name, history in timings.timing_vars.items() }
-        self.timing_vars_spacing = { name : max(len(self.__simplify_name(name)), len(self.__timing_var_column(history))) for name, history in timings.timing_vars.items() }
+        self.timing_vars_entries = { name : len(history) for name, history in timings.timing_vars.items() if all(c not in name for c in ["OM6", "OM12", "OM14"]) }
+        self.timing_vars_spacing = { name : max(len(self.__simplify_name(name)), len(self.__timing_var_column(history))) for name, history in timings.timing_vars.items() if all(c not in name for c in ["OM6", "OM12", "OM14"]) }
         self.register_spacing    = { name : max(len(name), len(self.register_header)) for name in timings.register_models }
 
     def __simplify_name(self, name):
         """ Simplifies the name of a timing variable. """
-        return name.replace("_stage", "").replace("stage", "")
+        return name.replace("_stage", "").replace("stage", "").replace("CUSTOM", "cstm")
 
     def __timing_var_column(self, history):
         """" Generates the columns for the history of a timing variable."""
@@ -256,11 +294,42 @@ class SequenceAnalyzer:
         if timings.connector_models:
             eprint(f"WARN: The following connector models may not be handled correctly:\n{'\n'.join(f"\t'{key}'" for key in timings.connector_models)}")
 
+        previous_stall_cycles = {}
+        stall_cycles = 0
+
         idx       = 0
         num_instr = len(code_block.instructions)
         for instr in code_block.instructions:
 
-            output_timings = self.__append_instruction(sched_variant, struct_variant, instr, idx, timings, dynamic_vars=code_block.dynamic_vars)
+            sched_function = self.__find_scheduling_function(sched_variant, instr.name)
+
+            print_stalls = True
+            if print_stalls:
+                pipeline = struct_variant.getPipeline()
+                used_timing_vars = list(edge.getTimingVariable().name for node in sched_function.getAllNodes() for edge in chain(node.getAllOutEdges()) if not edge.isDynamic() and edge.getTimingVariable())
+
+                expected_timings = get_pipeline_timings(pipeline.getFirstStages(), used_timing_vars).stages
+
+                used_timing_vars = list(expected_timings.keys())
+                
+                current_input    = { name : max(0, timings.timing_vars[name][0])                               for name, value in expected_timings.items() }
+                predicted_diff   = { name : expected_timings[name] - (expected_timings[used_timing_vars[idx - 1]] if idx > 0 else 0) for idx, name in enumerate(used_timing_vars) }
+
+                predicted_output = { name : max(expected_timings[name],                                                                 # minimum CC for stage 
+                                                current_input[name] + predicted_diff[name],                                             # last CC of stage + difference
+                                                previous_stall_cycles[name] if name in previous_stall_cycles else 0,                    # in case of previous stall to avoid counting overlapping stalls twice
+                                                ) for idx, name in enumerate(predicted_diff) }
+                predicted_output = { name : max(predicted_output[name],                                                                 # previously calculated value
+                                                predicted_output[used_timing_vars[idx - 1]] + predicted_diff[name] if idx > 0 else 0,   # value of preceeding stage plus excpected difference
+                                                ) for idx, name in enumerate(predicted_diff) }
+
+                print()
+                print("->", current_input)
+                print(" +", predicted_diff)
+                print(">=", { name: previous_stall_cycles[name] if name in previous_stall_cycles else 0 for name in used_timing_vars })
+                print(" =", predicted_output)
+
+            output_timings = self.__append_instruction(sched_function, struct_variant, instr, idx, timings, dynamic_vars=code_block.dynamic_vars)
 
             if self.print_timings:
                 timings_history.append(output_timings)
@@ -269,67 +338,35 @@ class SequenceAnalyzer:
             timings = output_timings
             idx    += 1
 
+            if print_stalls:
+                actual_output   = { name : output_timings.timing_vars[name][0] for name, value in expected_timings.items() }
+                
+                stalling_stages = { name: (actual_output[name] - predicted_output[name]) for name in used_timing_vars if (actual_output[name] - predicted_output[name]) > 0 }
+                stalling_stage  = dotdict({ "name": None, "diff": None })
+                if stalling_stages:
+                    stalling_stage = max((dotdict({ "name": name, "diff": value }) for name, value in stalling_stages.items()), key=lambda t: t.diff)
+                    stall_cycles  += stalling_stage.diff
+                    # all previous stages must exceed the current CC to cause a notable stall
+                    previous_stall_cycles |= { used_timing_vars[i]: actual_output[stalling_stage.name] for i in range(0, used_timing_vars.index(stalling_stage.name)) }
+
+                print("=>", actual_output, f"(+{stalling_stage.diff} CC stalls in '{stalling_stage.name}')" if stalling_stage.name else "")
+
         # print table
         if self.print_timings:
             TimingsPrinter.print_history(timings_history, code_block)
+            print("STALLS:", stall_cycles, "\tCPI:", (len(code_block.instructions) + stall_cycles) / len(code_block.instructions))
 
         return timings
 
-    def __append_instruction(self, sched_variant: 'SchedVariant', struct_variant: 'StructVariant', instr: 'InstructionDescription', idx:int, input_timings: 'Timings', dynamic_vars: Dict[str, int|float]) -> 'Timings':
+    def __append_instruction(self, sched_function: 'SchedulingFunction', struct_variant: 'StructVariant', instr: 'InstructionDescription', idx:int, input_timings: 'Timings', dynamic_vars: Dict[str, int|float]) -> 'Timings':
         """
         Evaluates the instruction (idx in instr) for the given input timings and returns the updated timings.
         """
         if self.verbose:
             print(f"   > {idx}. instr: '{instr.name}' {'-'*(40-len(instr.name))}")
 
-        sched_function = self.__find_scheduling_function(sched_variant, instr.name)
         root_node = sched_function.getRootNode()
         assert root_node is not None, f"Scheduling function '{sched_function.name}' has no root node!"
-
-        used_timing_vars = list(edge.getTimingVariable().name for node in sched_function.getAllNodes() for edge in chain(node.getAllOutEdges()) if not edge.isDynamic() and edge.getTimingVariable())
-        pipeline = struct_variant.getPipeline()
-        stages   = {}
-
-        def get_expected_pipeline_cc(next_stages):
-            idx = 1
-            while next_stages:
-                queue        = deque(next_stages)
-                next_stages  = []
-                #do_increment = any(s.name in used_timing_vars for s in queue)
-                depth = idx
-                while queue:
-                    stage = queue.popleft()
-                    if stage.name not in used_timing_vars:
-                        continue
-
-                    current_depth = 0
-                    for subpipeline in stage.getPipelines():
-                        substages = subpipeline.getFirstStages()
-                        for substage in substages:
-                            if substage.name not in used_timing_vars:
-                                continue
-                            assert current_depth == 0, f"Multiple sub-pipleines for stage '{stage.name}' are active at the same time!"
-                            current_depth = get_expected_pipeline_cc([substage])
-                            break
-
-                    if current_depth > 0:
-                        stages[stage.name] = idx + current_depth - 2
-                    else:
-                        stages[stage.name] = idx
-
-                    depth = max(depth, stages[stage.name])
-                    next_stages += stage.getNextStages()
-
-                #if do_increment:
-                idx = depth + 1
-
-            return idx
-            
-        #print(instr.name, used_timing_vars)
-        get_expected_pipeline_cc(pipeline.getFirstStages())
-        #print()
-        print(stages)
-        #print()
 
         # delays of visited nodes
         node_delays = {}

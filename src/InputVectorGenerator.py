@@ -38,27 +38,27 @@ class PipelineDescription(dotdict):
             next_stages = []
             for stage in stages:
                 #for depth in [1, stage.capacity] if stage.capacity > 1 else [1]:
-                    depth = 1
-                    #assert stage.capacity == 1
-                    timing_variable = stage.name
-                    # TODO: this is hacky -> access variable of stage 
-                    # name without accessing delay graph
+                depth = 1
+                assert stage.capacity == 1, f"Timing variables with capacities > 1 are not yet supported when generating the input vector!"
+                timing_variable = stage.name
+                # TODO: this is hacky -> access variable of stage 
+                # name without accessing delay graph
+                if simplify_variable_name:
+                    edge = dotdict({"timingVariable":dotdict({"name":timing_variable, "numElements":1}), "dynamic":False, "depth":depth})
+                    variable_name = DelayGraphTransformer.variable_name(edge=edge)
+                else:
+                    variable_name = timing_variable
+                timing_variables[variable_name] = tuple()
+                for substage in chain(stage.getNextStages(), stage.getFirstSubStages()):
+                    assert substage.capacity == 1, f"Timing variables with capacities > 1 are not yet supported when generating the input vector!"
+                    next_stages.append(substage)
+                    next_timing_variable = substage.name
                     if simplify_variable_name:
-                        edge = dotdict({"timingVariable":dotdict({"name":timing_variable, "numElements":1}), "dynamic":False, "depth":depth})
-                        variable_name = DelayGraphTransformer.variable_name(edge=edge)
+                        edge.timingVariable.name = next_timing_variable
+                        next_variable_name = DelayGraphTransformer.variable_name(edge=edge)
                     else:
-                        variable_name = timing_variable
-                    timing_variables[variable_name] = tuple()
-                    for next_stage in chain(stage.getNextStages(), stage.getFirstSubStages()):
-                        #assert next_stage.capacity == 1
-                        next_stages.append(next_stage)
-                        next_timing_variable = next_stage.name
-                        if simplify_variable_name:
-                            edge.timingVariable.name = next_timing_variable
-                            next_variable_name = DelayGraphTransformer.variable_name(edge=edge)
-                        else:
-                            next_variable_name = next_timing_variable
-                        timing_variables[variable_name] = timing_variables[variable_name] + (next_variable_name,)
+                        next_variable_name = next_timing_variable
+                    timing_variables[variable_name] = timing_variables[variable_name] + (next_variable_name,)
             stages = next_stages
         return timing_variables
 
@@ -130,10 +130,9 @@ class InputVectorGenerator:
 
     def assume_perfect_pipeline(self, pipeline:'PipelineDescription', use_zero_delay=False):
         start = pipeline.start()
-        for s in start:
-            self.__assume_input_value(s, self._zero_delay)
+        self.__assume_input_value(start, self._zero_delay)
 
-        stages = [*start]
+        stages = [start]
         while stages:
             next_stages = []
             for stage in stages:

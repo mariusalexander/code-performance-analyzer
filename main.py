@@ -169,11 +169,20 @@ def main():
                                          default_dynamic_delay=args.dynamic_delays) \
             .analyze_all_variants(schedule_model, struct_model, descs)
 
-        op(sequence_model)
         exit(0)
 
     resolve_dynamic_delays = args.dynamic_delays is not None
     block_schedule = BlockSchedulingTransformer(verbose=args.verbose).transform(schedule_model, descs, brpred_option=args.brpred)
+
+    ### Backends ###
+
+    # visualizations
+    if args.schedule_graph:
+        SchedulingModelViewer().execute(block_schedule, args.out_dir, alternate_color=True, show_delays=True)
+    if args.delay_graph:
+        DelayGraphViewer().execute(delay_model, args.out_dir)
+    if args.exit:
+        exit(0)
 
     # generate input vector upfront
     if not args.resolve_later:
@@ -203,19 +212,10 @@ def main():
                 block_function.set_input_vector(input_vector)
                 idx += 1
 
+    # delay model
     delay_model = DelayGraphTransformer(verbose=args.verbose, 
                                         default_dynamic_delay=args.dynamic_delays) \
         .transform(block_schedule, descs, symbolic_vars=args.symbolic_vars)
-
-    ### Backends ###
-
-    # visualizations
-    if args.schedule_graph:
-        SchedulingModelViewer().execute(block_schedule, args.out_dir, alternate_color=True, show_delays=True)
-    if args.delay_graph:
-        DelayGraphViewer().execute(delay_model, args.out_dir)
-    if args.exit:
-        exit(0)
 
     results = {}
     # cpi analysis 
@@ -238,8 +238,7 @@ def main():
                 input_vector = InputVectorGenerator(struct_variant, delay_graph, verbose=args.verbose) \
                                     .assume_all_registers_available() \
                                     .assume_pc_available() \
-                                    .assume_perfect_pipeline(pipeline=pipeline) \
-                                    .finalize()
+                                    .assume_perfect_pipeline(pipeline=pipeline)
                 if resolve_dynamic_delays:
                     input_vector.assume_fix_dynamic_delays(value=args.dynamic_delays)
                 input_vector = input_vector.finalize()
@@ -282,7 +281,9 @@ def main():
                 cpi, stage = analyzer.estimate_cpi(pipeline, output_vector, num_instructions, offset=input_vector[pipeline.start()].delay)
                 if args.print_bb:
                     print(delay_graph.code_block)
-                print(variant.name.ljust(30), delay_graph.name.ljust(20), f"CPI: {cpi:>8.6f} ({stage.name:>5}={stage.delay:>3})\t{len(delay_graph.code_block.instructions):>3} instructions, rel weight: {delay_graph.code_block.weight:.5f}%")
+                print(variant.name.ljust(30), delay_graph.name.ljust(20), 
+                      f"CPI: {cpi:>8.6f} ({stage.name:>5}={stage.delay:>3})\t{len(delay_graph.code_block.instructions):>3} instructions,",
+                       "rel weight:", (f"{delay_graph.code_block.weight:.5f}%" if delay_graph.code_block.weight is not None else "rel weight: ??"))
                 
                 assert delay_graph.name not in results[variant.name], "Duplicate result entry!"
                 results[variant.name][delay_graph.name] = dotdict({
