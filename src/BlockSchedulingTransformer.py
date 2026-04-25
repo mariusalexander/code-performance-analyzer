@@ -52,7 +52,7 @@ class BlockSchedulingFunction(SchedulingFunction):
         self._input_vector = input_vector
 
 class BlockSchedulingTransformer:
-    """Block Scheduling Transformer"""
+    """ Block Scheduling Transformer """
 
     def __init__(self, verbose=True):
         self._id = 1024
@@ -95,7 +95,7 @@ class BlockSchedulingTransformer:
                 # iterate over each BB
                 with Profile(f"  > Generating all block scheduling functions"):
                     for block_desc in block_descriptions:
-                        assert block_desc.has_valid_instructions()
+                        assert block_desc.is_valid_code_block()
                         with Profile(f"   >"):
                             self.__generateBlockSchedulingFunction(sched_variant, block_variant, block_desc)
 
@@ -333,12 +333,11 @@ class BlockSchedulingTransformer:
         pred_model = mappings[model]
         if self.verbose:
             print(f"    > Resolved {model}: Node '{block_node.name}' sets 'Pc' ({edge.name})")
-        if edge.name == "Pc_np":
-            if model == "dynBranchPredModel":
-                return
-            if model == "staBranchPredModel":
-                # TODO: resolve hard coded logic
-                assert edge.name in ["Pc_p", "Pc_np"], f"Unkown connector '{edge.name}'"
+        # attempt to model static branch prediction
+        # TODO: resolve hard coded logic
+        if model == "staBranchPredModel":
+            assert edge.name in ["Pc_p", "Pc_np"], f"Unkown connector '{edge.name}'"
+            if edge.name == "Pc_np": 
                 match self.brpred_option:
                     # the pc_np path has no effect if branch prediction predicts correctly.
                     case "sta_never_taken":
@@ -363,10 +362,7 @@ class BlockSchedulingTransformer:
         for model in self._branch_prediction_models:
             mapping = mappings[model]
             for connector in mapping:
-                ## TODO: resolve hard coded logic
-                ## pc path is input only
-                #if connector == "Pc":
-                #    continue
+                # TODO: some connectors are ingoing only and should not be set as outputs (e.g. "Pc" for staBranchPred)
                 block_node = mapping[connector]
                 if not block_node:
                     continue

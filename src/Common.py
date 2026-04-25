@@ -56,5 +56,15 @@ class Print:
         def __exit__(self, *args):
             Print.indent = self.old_indent
 
-def eprint(*args, **kwargs):
+# prints to stderr
+def err_print(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
+
+def find_variant(model, name):
+    """
+    Helper function to find a variant with the given name in the scheudle or structural model.
+    """
+    for variant in model.variants:
+        if variant.name == name:
+            return variant
+    raise RuntimeError(f"Variant '{name}' not found in '{type(model)}'!")

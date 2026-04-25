@@ -8,7 +8,7 @@ class DelayAnalyzer:
 
     def __init__(self, verbose=True):
         print()
-        print("-- BACKENDS: Delay Anaylzer --")
+        print("-- BACKENDS: Delay Analyzer --")
         self.verbose = verbose
 
     def apply_input_vector(self, input_vector:'dotdict', functions:Dict[str, 'DelayFunctionList']) -> Dict[str, 'DelayFunctionList']:

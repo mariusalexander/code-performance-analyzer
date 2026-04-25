@@ -9,7 +9,7 @@ from objprint import op
 
 from backends.schedule_viewer.SchedulingModelViewer import SchedulingModelViewer
 
-from src.Common import Profile, Print, dotdict
+from src.Common import Profile, Print, dotdict, find_variant
 from src.InstructionBlockDescription import InstructionBlockDescription
 from src.BlockSchedulingTransformer import BlockSchedulingTransformer
 from src.DelayGraph import DelayGraphTransformer
@@ -17,7 +17,8 @@ from src.DelayGraphViewer import DelayGraphViewer
 from src.DelayAnalyzer import DelayAnalyzer
 from src.InputVectorGenerator import InputVector, InputVectorGenerator, PipelineDescription
 from src.MaxPlusAlgebra import DelayVariable, DelayFunction_v2, DelayFunctionList
-from src.SequenceAnalyzer import SequenceAnalyzer
+from src.SequenceTransformer import SequenceTransformer
+from src.TimingsAnalyzer import TimingsAnalyzer
 
 import tests.TestVectors as Examples
 import tests.UnitTests as UnitTests
@@ -146,33 +147,44 @@ def main():
     Print.indent = 3
 
     # generate block and delay models
-    descs = []
+    code_blocks = []
     block_schedule = delay_model = None
 
     # load code blocks from file(s)
     if args.files:
-        descs = InstructionBlockDescription.load_from_files(args.files, ignore_variants=args.ign_dyn, verbose=args.verbose)
+        code_blocks = InstructionBlockDescription.load_from_files(args.files, ignore_variants=args.ign_dyn, verbose=args.verbose)
     # load example code blocks
     elif args.examples:
-        descs = Examples.test_vectors(pattern=args.examples)
+        code_blocks = Examples.test_vectors(pattern=args.examples)
     # run unittests
     elif args.tests:
         success = UnitTests.run()
         exit(success)
 
-    if len(descs) == 0:
+    if len(code_blocks) == 0:
         print(" > ERROR: No code blocks to generate schedule models!")
         exit(1)
 
     if args.sequenced:
-        sequence_model = SequenceAnalyzer(verbose=args.verbose, 
+        sequence_model = SequenceTransformer(verbose=args.verbose, 
                                          default_dynamic_delay=args.dynamic_delays) \
-            .analyze_all_variants(schedule_model, struct_model, descs)
+            .analyze_all_variants(schedule_model, struct_model, code_blocks)
+
+        for sequence_variant in sequence_model.variants:
+            sched_variant  = find_variant(schedule_model, sequence_variant.name)
+            struct_variant = find_variant(struct_model, sequence_variant.name)
+
+            analyzer = TimingsAnalyzer(sched_variant=sched_variant, struct_variant=struct_variant)
+
+            for code_block in code_blocks:
+                results = analyzer.analyse_steady_state(code_block=code_block, final_timings=sequence_variant.timings[code_block.name], timings_history=sequence_variant.timings_history[code_block.name])
+                op(results)
+                #results = analyzer.find_stalling_instructions(code_block=code_block, timings_history=sequence_variant.timings_history[code_block.name])
 
         exit(0)
 
     resolve_dynamic_delays = args.dynamic_delays is not None
-    block_schedule = BlockSchedulingTransformer(verbose=args.verbose).transform(schedule_model, descs, brpred_option=args.brpred)
+    block_schedule = BlockSchedulingTransformer(verbose=args.verbose).transform(schedule_model, code_blocks, brpred_option=args.brpred)
 
     ### Backends ###
 
@@ -200,8 +212,8 @@ def main():
                                 .assume_perfect_pipeline(pipeline=pipeline)
                 if resolve_dynamic_delays:
                     input_vector.assume_fix_dynamic_delays(value=args.dynamic_delays)
-                elif descs[idx].dynamic_vars:
-                    input_vector.apply_dynamic_delays(descs[idx].dynamic_vars)
+                elif code_blocks[idx].dynamic_vars:
+                    input_vector.apply_dynamic_delays(code_blocks[idx].dynamic_vars)
                 elif block_function.dynamic_variables() and args.no_dyn:
                     print("Error: Unmatched dynamic delays:", block_function.name)
                     for name in block_function.dynamic_variables():
@@ -215,7 +227,7 @@ def main():
     # delay model
     delay_model = DelayGraphTransformer(verbose=args.verbose, 
                                         default_dynamic_delay=args.dynamic_delays) \
-        .transform(block_schedule, descs, symbolic_vars=args.symbolic_vars)
+        .transform(block_schedule, code_blocks, symbolic_vars=args.symbolic_vars)
 
     results = {}
     # cpi analysis 
