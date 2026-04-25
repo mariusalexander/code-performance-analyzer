@@ -73,7 +73,7 @@ class InstructionBlockDescription:
     def __str__(self) -> str:
         header   = f"code block '{self.name}' (0x{self.starting_address:08x}), {len(self.instructions)} instructions, {f"{self.weight * 100:2.2f}% weight" if self.weight else ""}:"
         instrs   = "\n ".join(f"{" " * Print.indent}{idx:>3}. {instr}" for idx, instr in enumerate(self.instructions))
-        dyn_vars = "\n ".join(f"{" " * Print.indent} > {name}: {value:.8f}" for name,value in self.dynamic_vars.items())
+        dyn_vars = "\n ".join(f"{" " * Print.indent}  {name}: {value:.4f}" for name,value in self.dynamic_vars.items())
         return f"{header}\n {instrs}" + (f"\n {" " * Print.indent}with:\n {dyn_vars}" if self.dynamic_vars else "")
 
     def __repr__(self) -> str:
@@ -152,7 +152,7 @@ class InstructionBlockDescription:
                 if file.name in variants:
                     for idx, variant in enumerate(variants[file.name]):
                         code_block_variant = copy.deepcopy(desc)
-                        code_block_variant.name        += f"_v{idx}"
+                        code_block_variant.name        += f"_v{idx}" if len(variants[file.name]) > 1 else ""
                         code_block_variant.weight      *= variant["weight"]
                         code_block_variant.dynamic_vars = variant["variables"]
                         if verbose:

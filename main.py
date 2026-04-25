@@ -19,6 +19,7 @@ from src.InputVectorGenerator import InputVector, InputVectorGenerator, Pipeline
 from src.MaxPlusAlgebra import DelayVariable, DelayFunction_v2, DelayFunctionList
 from src.SequenceTransformer import SequenceTransformer
 from src.TimingsAnalyzer import TimingsAnalyzer
+from src.TimingsPrinter import TimingsPrinter
 
 import tests.TestVectors as Examples
 import tests.UnitTests as UnitTests
@@ -170,16 +171,62 @@ def main():
                                          default_dynamic_delay=args.dynamic_delays) \
             .analyze_all_variants(schedule_model, struct_model, code_blocks)
 
+        print("\n-- FRONTEND: DELAY ANALYSIS --")
+        final_results = {}
         for sequence_variant in sequence_model.variants:
+            assert sequence_variant.name not in final_results, \
+                   f"Duplicate result entry for variant '{variant.name}'!"
+            
+            final_results[sequence_variant.name] = {}
             sched_variant  = find_variant(schedule_model, sequence_variant.name)
             struct_variant = find_variant(struct_model, sequence_variant.name)
 
             analyzer = TimingsAnalyzer(sched_variant=sched_variant, struct_variant=struct_variant)
 
             for code_block in code_blocks:
-                results = analyzer.analyse_steady_state(code_block=code_block, final_timings=sequence_variant.timings[code_block.name], timings_history=sequence_variant.timings_history[code_block.name])
-                op(results)
-                #results = analyzer.find_stalling_instructions(code_block=code_block, timings_history=sequence_variant.timings_history[code_block.name])
+                timings_history = sequence_variant.timings_history[code_block.name]
+                results = analyzer.analyse_steady_state(code_block=code_block, timings_history=timings_history)
+                
+                if args.print:
+                    print()
+                    print(f" > Timings of '{code_block.name}' ({sequence_variant.name}):")
+                    TimingsPrinter.print_history(code_block=code_block, timings_history=timings_history, stall_history=results.stall_history)
+                    print()
+
+                if args.cpi:
+                    print(f"Variant: {sequence_variant.name:>15},", 
+                          f"Code Block: {code_block.name:>10},", 
+                          f"CPI: {results.cpi:>8.6f},",
+                          f"Instructions: {results.num_instructions:>3},",
+                          f"Stall cycles: {results.total_stall_cycles:>3},",
+                          f"Rel. Weight: {f'{code_block.weight:.5f}%' if code_block.weight else "??"}")
+
+                    assert code_block.name not in final_results[sequence_variant.name], \
+                           f"Duplicate result entry for code block '{code_block.name}'!"
+
+                    final_results[sequence_variant.name][code_block.name] = dotdict({
+                        "num_instructions"  : results.num_instructions,
+                        "stall_cycles"      : results.total_stall_cycles,
+                        "cpi"               : results.cpi,
+                        "weight"            : code_block.weight
+                    })
+
+        # export results
+        if isinstance(args.cpi, pathlib.Path):
+            for variant_name in final_results:
+                result = final_results[variant_name]
+                with open(args.cpi / f"{variant_name}_{args.suffix + "_" if args.suffix else ""}results.json", "w") as f:
+                    f.write(json.dumps(result, indent=4))
+
+        # print total CPI if possible
+        print()
+        for variant_name in final_results:
+            result = final_results[variant_name]
+            total_weight = sum(bb.weight for bb in result.values() if bb.weight is not None)
+            if total_weight == 0:
+                print("WARNING: Cannot determine total CPI, missing weights for basic blocks!")
+                continue
+            print(variant_name.ljust(30), f"total CPI: {sum((bb.cpi * bb.weight / total_weight) for bb in result.values()):.6f} \ttotal weight: {total_weight * 100:.3f}%")
 
         exit(0)
 

@@ -258,7 +258,7 @@ class DelayGraphTransformer:
             if self.block_function.input_vector() is not None \
                and variable in self.block_function.input_vector():
                functions.plus(self.block_function.input_vector()[variable].delay)
-            if self.default_dynamic_delay is not None:
+            elif self.default_dynamic_delay is not None:
                functions.plus(self.default_dynamic_delay)
             else:
                 graph.register_dynamic_variable(node.name, variable)

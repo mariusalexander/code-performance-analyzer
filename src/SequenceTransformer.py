@@ -12,44 +12,6 @@ from src.TimingsPrinter import TimingsPrinter
 from meta_models.scheduling_model.SchedulingModel import SchedulingModel, Variant as SchedVariant, SchedulingFunction, Node
 from meta_models.structural_model.StructuralModel import StructuralModel, Variant as StructVariant
 
-def get_pipeline_timings(next_stages, used_stages, cc=1):
-    stages   = {}
-    while next_stages:
-        queue        = deque(next_stages)
-        next_stages  = []
-        cc_increment = cc
-        while queue:
-            stage = queue.popleft()
-            if stage.name not in used_stages:
-                continue
-
-            stage_depth = 0
-            for subpipeline in stage.getPipelines():
-                substages = subpipeline.getFirstStages()
-                for substage in substages:
-                    if substage.name not in used_stages:
-                        continue
-                    assert stage_depth == 0, f"Multiple sub-pipleines for stage '{stage.name}' are active at the same time!"
-                    results = get_pipeline_timings(next_stages=[substage], used_stages=used_stages, cc=cc)
-                    stage_depth = results.depth
-                    stages     |= results.stages
-                    break
-            
-            if stage_depth > 0:
-                current_cc  = stage_depth - 1
-            else:
-                current_cc = cc
-
-            stages[stage.name] = current_cc
-            cc_increment = max(cc_increment, current_cc)
-
-            next_stages += stage.getNextStages()
-
-        cc = cc_increment + 1
-
-    return dotdict({ "depth": cc, "stages": stages })
-
-
 class SequenceTimingModel:
 
     def __init__(self):
@@ -76,14 +38,15 @@ class SequenceTimingVariant:
 class SequenceTransformer:
     """ Performs a static timing analysis on a code block similarly to how the C++ timing model operates. """
 
-    def __init__(self, verbose=False, print_timings=True, print_stalls=True, default_dynamic_delay=None):
-        self.verbose       = verbose
-        self.print_timings = print_timings
-        self.print_stalls  = print_stalls
+    def __init__(self, verbose=False, accumulate_timings=True, print_history=False, default_dynamic_delay=None):
+        self.verbose                = verbose
+        # whether to accumulate the timings of each instructions, may have slight performance impact
+        self.accumulate_timings     = print_history or accumulate_timings
+        self.print_history          = print_history
         # default delay for all unmatched dynamic delays
-        self.default_dynamic_delay = default_dynamic_delay
+        self.default_dynamic_delay  = default_dynamic_delay
         # cache for scheduling functions
-        self.instr2schedfunc       = {}
+        self.instr2schedfunc        = {}
 
     def __find_scheduling_function(self, sched_variant, instr_name):
         """
@@ -140,23 +103,9 @@ class SequenceTransformer:
         if timings.connector_models:
             err_print(f"WARN: The following connector models may not be handled correctly:\n{'\n'.join(f"\t'{key}'" for key in timings.connector_models)}")
 
-        expected_end_cycle = 0
-        actual_end_cycle   = 0
-        accumulated_stalls = 0
-        total_stall_cycles = 0
-
-        num_instr = len(code_block.instructions)
         for instr_idx, instr in enumerate(code_block.instructions):
 
             sched_function = self.__find_scheduling_function(sched_variant, instr.name)
-
-            pipeline = struct_variant.getPipeline()
-            used_timing_vars    = list(edge.getTimingVariable().name for node in sched_function.getAllNodes() for edge in node.getAllOutEdges() if not edge.isDynamic() and edge.getTimingVariable())
-            expected_timings    = get_pipeline_timings(pipeline.getFirstStages(), used_timing_vars).stages
-            main_stages         = ( stage.name for stage in pipeline.getAllStages() if stage.parent == pipeline and stage.name in expected_timings )
-
-            target_stage        = max((dotdict({ "name": name, "value": expected_timings[name]}) for name in main_stages), key=lambda obj: obj.value)
-            expected_end_cycle  = target_stage.value + instr_idx
 
             # evaluate scheduling instruction
             output_timings = self.__append_instruction(sched_function, instr, instr_idx, timings, dynamic_vars=code_block.dynamic_vars)
@@ -164,25 +113,12 @@ class SequenceTransformer:
             # outputs of this scheduling function feed into the next scheduling function
             timings = output_timings
 
-            if self.print_timings:
+            if self.accumulate_timings:
                 timings_history.append(output_timings)
 
-            actual_end_cycle = output_timings.timing_vars[target_stage.name][0]
-
-            if self.print_stalls and actual_end_cycle > (expected_end_cycle + accumulated_stalls):
-                diff = actual_end_cycle - expected_end_cycle - accumulated_stalls
-                accumulated_stalls += diff
-                print(f"{' ' * Print.indent}> {instr_idx:>3}. instr. {f"'{instr.name}'":>12} experienced +{diff} stall cycle(s)")
-
-        total_stall_cycles = actual_end_cycle - expected_end_cycle
-
-        if self.print_stalls:
-            assert accumulated_stalls == total_stall_cycles, f"Stall cycles mismatch! ({accumulated_stalls} vs expected {total_stall_cycles})"
-
         # print table
-        if self.print_timings:
-            TimingsPrinter.print_history(timings_history, code_block)
-            print("STALLS:", total_stall_cycles, "\tCPI:", (num_instr + total_stall_cycles) / num_instr)
+        if self.print_history:
+            TimingsPrinter.print_history(code_block=code_block, timings_history=timings_history)
 
         return timings, timings_history
 

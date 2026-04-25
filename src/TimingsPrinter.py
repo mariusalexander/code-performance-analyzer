@@ -38,9 +38,11 @@ class TimingsPrinter:
         return self.s_spacer.join(f'{model[reg]:>{self.digits+1}}' if reg in model else f'{'-':>{self.digits+1}}' for reg in self.registers)
 
     @staticmethod
-    def print_history(timings_history: List['Timings'], code_block: 'InstructionBlockDescription', s_spacer='|', w_spacer='||', h_line='-', fprint=print):
+    def print_history(code_block: 'InstructionBlockDescription', timings_history: List['Timings'], stall_history: List[int] = [], s_spacer='|', w_spacer='||', h_line='-', fprint=print):
         if len(timings_history) == 0: 
             return
+        if stall_history:
+            assert len(stall_history) == len(timings_history), "Invalid stall history!"
 
         # determine how many digits are necessary
         digits = len(str(max(value for timing in timings_history for values in timing.timing_vars.values() for value in values)))
@@ -49,9 +51,11 @@ class TimingsPrinter:
         timings_header.timing_vars = { name : history for name, history in timings_header.timing_vars.items() if any(value >= 0 for value in history) }
 
         table = TimingsPrinter(timings=timings_header, code_block=code_block, digits=digits, s_spacer=s_spacer, w_spacer=w_spacer, h_line=h_line)
+        
         table.print_header(fprint=fprint)
-        for idx, [timing, instr] in enumerate(zip(timings_history, code_block.instructions)):
-            table.print_row(timings=timing, instr_name=instr.name, idx=idx, fprint=fprint)
+        for instr_idx, [timing, instr] in enumerate(zip(timings_history, code_block.instructions)):
+            stall_cycles = stall_history[instr_idx] if stall_history else 0
+            table.print_row(timings=timing, instr_name=instr.name, instr_idx=instr_idx, stall_cycles=stall_cycles, fprint=fprint)
 
     def print_header(self, fprint=print):
         # ommit indicies for the history of a timing variable if its capacity is one
@@ -72,9 +76,11 @@ class TimingsPrinter:
             #fprint("".join(':' if char in (*self.s_spacer, *self.w_spacer) else self.h_line for char in header_row2))
             fprint(self.h_line * len(max(header_row1, header_row2)))
 
-    def print_row(self, timings: 'Timings', instr_name:str, idx:int, fprint=print):
-        row =  f"{idx:>4}. {self.s_spacer} {instr_name:>11} {self.w_spacer} "
+    def print_row(self, timings: 'Timings', instr_name:str, instr_idx:int, stall_cycles=0, fprint=print):
+        row =  f"{instr_idx:>4}. {self.s_spacer} {instr_name:>11} {self.w_spacer} "
         row += f" {self.t_spacer} ".join(self.__timing_var_column(timings.timing_vars[name]).rjust(spacing) for name, spacing in self.timing_vars_spacing.items())
         row += f" {self.w_spacer} "
         row += f" {self.w_spacer} ".join(self.__register_column(timings.register_models[model]).rjust(spacing) for model, spacing in self.register_spacing.items())
+        if stall_cycles > 0:
+            row += f" (+{stall_cycles} CC)"
         fprint(row)
