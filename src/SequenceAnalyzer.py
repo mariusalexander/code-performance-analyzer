@@ -294,10 +294,9 @@ class SequenceAnalyzer:
         if timings.connector_models:
             eprint(f"WARN: The following connector models may not be handled correctly:\n{'\n'.join(f"\t'{key}'" for key in timings.connector_models)}")
 
-        previous_stall_cycles = {}
-        stall_cycles = 0
+        total_stall_cycles = 0
 
-        idx       = 0
+        instr_idx = 0
         num_instr = len(code_block.instructions)
         for instr in code_block.instructions:
 
@@ -307,63 +306,43 @@ class SequenceAnalyzer:
             if print_stalls:
                 pipeline = struct_variant.getPipeline()
                 used_timing_vars = list(edge.getTimingVariable().name for node in sched_function.getAllNodes() for edge in chain(node.getAllOutEdges()) if not edge.isDynamic() and edge.getTimingVariable())
-
                 expected_timings = get_pipeline_timings(pipeline.getFirstStages(), used_timing_vars).stages
+                main_stages      = [ stage.name for stage in pipeline.getAllStages() if stage.parent == pipeline ]
 
-                used_timing_vars = list(expected_timings.keys())
-                
-                current_input    = { name : max(0, timings.timing_vars[name][0])                               for name, value in expected_timings.items() }
-                predicted_diff   = { name : expected_timings[name] - (expected_timings[used_timing_vars[idx - 1]] if idx > 0 else 0) for idx, name in enumerate(used_timing_vars) }
+                target_stage        = max((dotdict({ "name": name, "value": expected_timings[name] }) for name in main_stages), key=lambda obj: obj.value)
+                target_stage.value += instr_idx + total_stall_cycles
 
-                predicted_output = { name : max(expected_timings[name],                                                                 # minimum CC for stage 
-                                                current_input[name] + predicted_diff[name],                                             # last CC of stage + difference
-                                                previous_stall_cycles[name] if name in previous_stall_cycles else 0,                    # in case of previous stall to avoid counting overlapping stalls twice
-                                                ) for idx, name in enumerate(predicted_diff) }
-                predicted_output = { name : max(predicted_output[name],                                                                 # previously calculated value
-                                                predicted_output[used_timing_vars[idx - 1]] + predicted_diff[name] if idx > 0 else 0,   # value of preceeding stage plus excpected difference
-                                                ) for idx, name in enumerate(predicted_diff) }
-
-                print()
-                print("->", current_input)
-                print(" +", predicted_diff)
-                print(">=", { name: previous_stall_cycles[name] if name in previous_stall_cycles else 0 for name in used_timing_vars })
-                print(" =", predicted_output)
-
-            output_timings = self.__append_instruction(sched_function, struct_variant, instr, idx, timings, dynamic_vars=code_block.dynamic_vars)
+            # evaluate scheduling instruction
+            output_timings = self.__append_instruction(sched_function, instr, instr_idx, timings, dynamic_vars=code_block.dynamic_vars)
 
             if self.print_timings:
                 timings_history.append(output_timings)
 
-            # outputs of this scheduling function feed into the next scheduling function
-            timings = output_timings
-            idx    += 1
-
             if print_stalls:
-                actual_output   = { name : output_timings.timing_vars[name][0] for name, value in expected_timings.items() }
-                
-                stalling_stages = { name: (actual_output[name] - predicted_output[name]) for name in used_timing_vars if (actual_output[name] - predicted_output[name]) > 0 }
-                stalling_stage  = dotdict({ "name": None, "diff": None })
-                if stalling_stages:
-                    stalling_stage = max((dotdict({ "name": name, "diff": value }) for name, value in stalling_stages.items()), key=lambda t: t.diff)
-                    stall_cycles  += stalling_stage.diff
-                    # all previous stages must exceed the current CC to cause a notable stall
-                    previous_stall_cycles |= { used_timing_vars[i]: actual_output[stalling_stage.name] for i in range(0, used_timing_vars.index(stalling_stage.name)) }
+                target_stage_output = output_timings.timing_vars[target_stage.name][0]
+                stall_cycles        = target_stage_output - target_stage.value
+                total_stall_cycles += stall_cycles
 
-                print("=>", actual_output, f"(+{stalling_stage.diff} CC stalls in '{stalling_stage.name}')" if stalling_stage.name else "")
+                if stall_cycles:
+                    print(f"{' ' * Print.indent}> {instr_idx:>3}. instr. ({instr.name}) => +{stall_cycles} CC stall")
+
+            # outputs of this scheduling function feed into the next scheduling function
+            timings    = output_timings
+            instr_idx += 1
 
         # print table
         if self.print_timings:
             TimingsPrinter.print_history(timings_history, code_block)
-            print("STALLS:", stall_cycles, "\tCPI:", (len(code_block.instructions) + stall_cycles) / len(code_block.instructions))
+            print("STALLS:", total_stall_cycles, "\tCPI:", (len(code_block.instructions) + total_stall_cycles) / len(code_block.instructions))
 
         return timings
 
-    def __append_instruction(self, sched_function: 'SchedulingFunction', struct_variant: 'StructVariant', instr: 'InstructionDescription', idx:int, input_timings: 'Timings', dynamic_vars: Dict[str, int|float]) -> 'Timings':
+    def __append_instruction(self, sched_function: 'SchedulingFunction', instr: 'InstructionDescription', instr_idx:int, input_timings: 'Timings', dynamic_vars: Dict[str, int|float]) -> 'Timings':
         """
         Evaluates the instruction (idx in instr) for the given input timings and returns the updated timings.
         """
         if self.verbose:
-            print(f"   > {idx}. instr: '{instr.name}' {'-'*(40-len(instr.name))}")
+            print(f"   > {instr_idx}. instr: '{instr.name}' {'-'*(40-len(instr.name))}")
 
         root_node = sched_function.getRootNode()
         assert root_node is not None, f"Scheduling function '{sched_function.name}' has no root node!"
@@ -389,7 +368,7 @@ class SequenceAnalyzer:
             input_delays   = self.__get_input_delays(node, instr, input_timings)
 
             # dynamic delay
-            dynamic_delay  = self.__get_dynamic_delays(node, dynamic_vars, idx)
+            dynamic_delay  = self.__get_dynamic_delays(node, dynamic_vars, instr_idx)
 
             # evaluate delay
             node_delay  = max(0, 0, *input_delays, *in_node_delays)
@@ -413,7 +392,7 @@ class SequenceAnalyzer:
 
         # making sure all nodes were processed
         assert all(n in visited for n in sched_function.getAllNodes()), \
-                f"{idx}. {instr.name}: Failed to visit all nodes! Missing: {', '.join(n.name for n in sched_function.getAllNodes() if n not in visited)}"
+                f"{instr_idx}. {instr.name}: Failed to visit all nodes! Missing: {', '.join(n.name for n in sched_function.getAllNodes() if n not in visited)}"
 
         return output_timings
 
@@ -423,7 +402,7 @@ class SequenceAnalyzer:
         """
         return list(node_delays[in_node.name] for in_node in node.getAllInNodes() if in_node.name in node_delays)
 
-    def __get_dynamic_delays(self, node: 'Node', dynamic_vars: Dict[str, int|float], idx: int) -> int|float :
+    def __get_dynamic_delays(self, node: 'Node', dynamic_vars: Dict[str, int|float], instr_idx: int) -> int|float :
         """ 
         Returns the dynamic delay in case the node is associated with a resource model. Otherwise returns a null delay. 
         """
@@ -431,7 +410,7 @@ class SequenceAnalyzer:
             return 0
         # build unique name for each dynamic variable
         # NOTE: could also use 'node.getResourceModel().name' here
-        dynamic_delay_name = f"{node.name}_{idx}"
+        dynamic_delay_name = f"{node.name}_{instr_idx}"
         # find value for dynamic delay in code block descritpion
         for dynamic_variable, delay in dynamic_vars.items():
             if fnmatch.fnmatch(dynamic_delay_name, dynamic_variable):
