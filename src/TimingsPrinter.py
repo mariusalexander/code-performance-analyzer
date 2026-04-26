@@ -47,7 +47,7 @@ class TimingsPrinter:
         # determine how many digits are necessary
         digits = len(str(max(value for timing in timings_history for values in timing.timing_vars.values() for value in values)))
         # filter out columns with no values
-        timings_header = timings_history[0].copy()
+        timings_header = timings_history[-1].copy()
         timings_header.timing_vars = { name : history for name, history in timings_header.timing_vars.items() if any(value >= 0 for value in history) }
 
         table = TimingsPrinter(timings=timings_header, code_block=code_block, digits=digits, s_spacer=s_spacer, w_spacer=w_spacer, h_line=h_line)

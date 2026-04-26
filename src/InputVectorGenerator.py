@@ -128,7 +128,8 @@ class InputVectorGenerator:
             self.__assume_input_value(pc, self._zero_delay)
         return self
 
-    def assume_perfect_pipeline(self, pipeline:'PipelineDescription', use_zero_delay=False):
+    def assume_perfect_pipeline(self, pipeline:'PipelineDescription', use_zero_delay=True):
+        # NOTE: not using zero delay may cause stalls for variants with substages
         start = pipeline.start()
         self.__assume_input_value(start, self._zero_delay)
 

@@ -60,10 +60,8 @@ class Print:
 def err_print(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
+# finds a variant with the given name in a schedule or structural model.
 def find_variant(model, name):
-    """
-    Helper function to find a variant with the given name in the scheudle or structural model.
-    """
     for variant in model.variants:
         if variant.name == name:
             return variant

@@ -70,7 +70,6 @@ class SequenceTransformer:
         model = SequenceTimingModel()
         with Profile(" > applying sequence transform to all variants"):
             for sched_variant in sched_model.getAllVariants():
-                self.instr2schedfunc = {}
                 print(f" > applying sequence transform to variant {sched_variant.name}")
                 struct_variant = find_variant(struct_model, sched_variant.name)
                 variant = model.create_variant(sched_variant.name)
@@ -81,6 +80,7 @@ class SequenceTransformer:
         """
         Performs the sequence analysis on all code blocks for the given schedule model variant.
         """
+        self.instr2schedfunc = {}
         with Profile("  > applying sequence transform to all code blocks"):
             for code_block in code_blocks:
                 with Profile(f"   >"):
@@ -94,7 +94,7 @@ class SequenceTransformer:
         print(f"  > applying sequence transform to code block '{code_block.name}'...")
 
         if not code_block.is_basic_block():
-            instructions = list((idx, instr) for idx, instr in enumerate(code_block.instructions) if instr.is_branch())
+            instructions = list((idx, instr) for idx, instr in enumerate(code_block.instructions[:-1]) if instr.is_branch())
             err_print(f"WARN: Code block '{code_block.name}' is not a basic block:\n{'\n'.join(f'\tinstr. {e[0]}. {e[1]}' for e in instructions)}")
 
         timings = Timings(sched_variant=sched_variant)

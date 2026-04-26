@@ -168,7 +168,8 @@ def main():
 
     if args.sequenced:
         sequence_model = SequenceTransformer(verbose=args.verbose, 
-                                         default_dynamic_delay=args.dynamic_delays) \
+                                             default_dynamic_delay=args.dynamic_delays,
+                                             accumulate_timings=args.print) \
             .analyze_all_variants(schedule_model, struct_model, code_blocks)
 
         print("\n-- FRONTEND: DELAY ANALYSIS --")
@@ -181,11 +182,12 @@ def main():
             sched_variant  = find_variant(schedule_model, sequence_variant.name)
             struct_variant = find_variant(struct_model, sequence_variant.name)
 
-            analyzer = TimingsAnalyzer(sched_variant=sched_variant, struct_variant=struct_variant)
+            analyzer = TimingsAnalyzer(sched_variant=sched_variant, struct_variant=struct_variant, accumulate_stalls=args.print)
 
             for code_block in code_blocks:
+                final_timings   = sequence_variant.timings[code_block.name]
                 timings_history = sequence_variant.timings_history[code_block.name]
-                results = analyzer.analyse_steady_state(code_block=code_block, timings_history=timings_history)
+                results = analyzer.analyse_steady_state(code_block=code_block, final_timings=final_timings, timings_history=timings_history)
                 
                 if args.print:
                     print()
@@ -194,7 +196,7 @@ def main():
                     print()
 
                 if args.cpi:
-                    print(f"Variant: {sequence_variant.name:>15},", 
+                    print(f"Variant: {sequence_variant.name:>15},\t", 
                           f"Code Block: {code_block.name:>10},", 
                           f"CPI: {results.cpi:>8.6f},",
                           f"Instructions: {results.num_instructions:>3},",
