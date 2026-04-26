@@ -120,18 +120,26 @@ class TimingsAnalyzer:
             return dotdict({ "name": input_stage.name, "value": input_cc })
 
         [current_stage] = next_stages
-        
+
         current_cc = None
         if sub_stages := current_stage.getFirstSubStages():
-            result = self.__get_expected_end_cycle(used_stages, sched_function, next_stages=sub_stages, input_stage=current_stage, input_cc=input_cc, instr_name=instr_name)
+            sub_pipeline_end_cycle = self.__get_expected_end_cycle(
+                used_stages, 
+                sched_function, 
+                next_stages=sub_stages, 
+                input_stage=current_stage, 
+                input_cc=input_cc, 
+                instr_name=instr_name
+            )
             # expected cc of this stage is the end cycle of the used substages (if any)
-            if result.name != current_stage.name:
-                current_cc = result.value
+            if sub_pipeline_end_cycle.name != current_stage.name:
+                current_cc = sub_pipeline_end_cycle.value
 
         if current_cc is None:
             # NOTE: this step is needed as some stages may not have any latencies (dummy stages?)
             # determine mirco operation that uses current timing variable
-            [source_mirco_op] = (node for node in sched_function.getAllNodes() if TimingsAnalyzer.__uses_timing_var(node, current_stage.name, is_input=True))
+            [source_mirco_op] = (node for node in sched_function.getAllNodes() 
+                                      if TimingsAnalyzer.__uses_timing_var(node, current_stage.name, is_input=True))
             latency = self.__get_latency_of_stage(source_mirco_op, current_stage.name)
             # resources along the way need more than one cycle -> stage will always cause stalls
             if latency > 1:
@@ -145,7 +153,14 @@ class TimingsAnalyzer:
         if not next_stages:
             return dotdict({ "name": current_stage.name, "value": current_cc })
 
-        return self.__get_expected_end_cycle(used_stages, sched_function, next_stages=next_stages, input_stage=current_stage, input_cc=current_cc, instr_name=instr_name)
+        return self.__get_expected_end_cycle(
+            used_stages, 
+            sched_function, 
+            next_stages=next_stages, 
+            input_stage=current_stage, 
+            input_cc=current_cc, 
+            instr_name=instr_name
+        )
 
     def __get_latency_of_stage(self, current_mirco_op:'Node', timing_var_name:str, instr_name=None):
         """
