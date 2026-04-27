@@ -153,14 +153,12 @@ class SymbolicSequenceTransformer:
 
             functions = DelayFunctionList_v2()
             # delays of all ingoing nodes
-            in_node_delays = self.__get_delays_of_in_nodes(node, node_delays)
-            for in_node in in_node_delays:
+            for in_node in self.__get_delays_of_in_nodes(node, node_delays):
                 for other_function in in_node:
                     functions.merge(other_function)
 
             # inputs from ingoing edges
-            input_delays   = self.__get_input_delays(node, instr, input_timings)
-            for in_delay in input_delays:
+            for in_delay in self.__get_input_delays(node, instr, input_timings):
                 if isinstance(in_delay, DelayFunctionList_v2):
                     for other_function in in_delay:
                         functions.merge(other_function)
@@ -174,10 +172,9 @@ class SymbolicSequenceTransformer:
             # symbolic variable
             is_symbolic = any(name in node.name and "stage" not in node.name for name in self.symbolic_vars)
             if is_symbolic:
-                print(node.name, "SYMBOLIC!")
                 functions.append_coefficient(DelayVariable(node.name, 1))
             elif node.getDelay() > 0:
-                    functions.plus(node.getDelay())
+                functions.plus(node.getDelay())
 
             #functions = functions.simplified()
             node_delays[node.name] = functions

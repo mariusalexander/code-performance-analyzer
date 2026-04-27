@@ -171,9 +171,14 @@ def main():
         exit(1)
 
     if args.sym_sequened:
-        sequence_model = SymbolicSequenceTransformer(verbose=args.verbose, symbolic_vars=args.variable_delays) \
+        sequence_model = SymbolicSequenceTransformer(verbose=args.verbose,
+                                                     symbolic_vars=args.variable_delays,
+                                                     default_dynamic_delay=args.dynamic_delays,
+                                                     print_history=args.print) \
             .analyze_all_variants(schedule_model, struct_model, code_blocks)
+
         exit(0)
+
     if args.sequenced:
         sequence_model = SequenceTransformer(verbose=args.verbose, 
                                              default_dynamic_delay=args.dynamic_delays,

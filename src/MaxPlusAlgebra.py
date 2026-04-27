@@ -5,7 +5,18 @@ from typing import List, Dict, Optional, Self
 
 from src.Common import Print, print_err
 
-do_print=False
+do_print=False #True
+do_print_detail=False
+
+symbolic_variable_names = {}
+
+def get_var_name(name):
+    if name in symbolic_variable_names:
+        return symbolic_variable_names[name]
+    assert len(symbolic_variable_names) < 26, "exceeding ascii letters!"
+    variable_name = chr(ord('A') + len(symbolic_variable_names))
+    symbolic_variable_names[name] = variable_name
+    return variable_name
 
 class DelayVariable:
     """ Represents a variable in a max term, associated with an added delay. """
@@ -171,7 +182,13 @@ class PlusTerm(BaseTerm):
         super().__init__(iterable_or_arg)
 
     def __str__(self) -> str:
-        return f"{" + ".join(f"{v.delay}*{v.name}" for v in self)}"
+        return " + ".join(f"{v.delay}*{get_var_name(v.name)}" for v in self)
+
+    def to_str(self):
+        """ 
+        Returns a brief string representation of this term in max-plus notation.
+        """
+        return "*".join(f"{v.delay}{get_var_name(v.name)}" for v in self)
 
     def __eq__(self, other) -> bool:
         """
@@ -188,7 +205,7 @@ class PlusTerm(BaseTerm):
         """
         assert isinstance(variable, DelayVariable), \
                f"Incompatible type '{type(value)}', expected {type(DelayVariable)}'!"
-        variable.delay = max(variable.delay, 1)
+        assert variable.delay > 0, "Variables in a plus term must have postive values > 0!"
         # update value if variable already exists
         for var in self:
             if var.name == variable.name:
@@ -436,6 +453,14 @@ class DelayFunction_v2:
     def __str__(self) -> str:
         if len(self.coefficients):
             return f"{self.static_delay} + {self.coefficients}"
+        return str(self.static_delay)
+
+    def to_str(self):
+        """ 
+        Returns a brief string representation of this function in max-plus notation.
+        """
+        if len(self.coefficients):
+            return f"{self.static_delay}*{self.coefficients.to_str()}"
         return str(self.static_delay)
 
     def __eq__(self, other) -> bool:
@@ -693,9 +718,16 @@ class DelayFunctionList_v2:
         self.instances = {}
         for i in iterable:
             self.merge(i)
+        self.merge(DelayFunction_v2())
 
     def __str__(self) -> str:
-        return objstr(self.instances) #f"max(" + (f",\n" + " " * (Print.indent + 4)).join(str(f) for f in self) + ")"
+        return f"max({(',\n' + ' ' * (Print.indent + 4)).join(str(f) for f in self)})"
+
+    def to_str(self):
+        """ 
+        Returns a brief string representation of this expression in max-plus notation.
+        """
+        return f' + '.join(f.to_str() for f in self)
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -710,6 +742,8 @@ class DelayFunctionList_v2:
         """
         Appends and merges the static variable. Returns self for operator chaining.
         """
+        if do_print:
+            print("  max", variable.delay)
         functions = tuple(f for f in self if f.is_static())
         for function in functions:
             function.append_static_var(variable)
@@ -724,6 +758,8 @@ class DelayFunctionList_v2:
         """
         Appends the coefficient to each function. Returns self for operator chaining.
         """
+        if do_print:
+            print(f"   add ({variable.delay} * {variable.delay})")
         for function in self:
             function.append_coefficient(variable)
         return self
@@ -732,6 +768,8 @@ class DelayFunctionList_v2:
         """
         Adds `value` to each function. Returns self for operator chaining.
         """
+        if do_print:
+            print(" plus", value)
         for function in self:
             function.plus(value)
         return self
@@ -756,17 +794,17 @@ class DelayFunctionList_v2:
         Returns self for operator chaining.
         """
         assert isinstance(other_function, DelayFunction_v2), f"Incompatible type '{type(value)}'!"
-        if other_function.is_empty():
-            return self
 
-        if do_print:
+        if do_print and not do_print_detail:
+            print("merge", other_function)
+        if do_print_detail:
             print(f"MERGING... '{other_function}'")
             op(self)
 
         instances = len(self.instances)
         if instances == 0:
             self.instances[0] = [other_function.copy()]
-            if do_print:
+            if do_print_detail:
                 their_min_value   = other_function.min_static_value(0)
                 print(f"{0:>2} ->", their_min_value, "appended\n")
             return self
@@ -774,7 +812,7 @@ class DelayFunctionList_v2:
         def check_merging(function, other_function):
             their_min_value = other_function.min_static_value(instance)
             this_min_value  = function.min_static_value(instance)
-            if do_print:
+            if do_print_detail:
                 max_len = max(7, len(str(function)), len(str(other_function)))
                 print(f"{instance:>2} ->", str(this_min_value).ljust(max_len-5), "\tvs.\t", str(their_min_value).ljust(max_len))
             return their_min_value - this_min_value
@@ -791,37 +829,39 @@ class DelayFunctionList_v2:
                                         ) for v in other_function.coefficients)
 
                 value = check_merging(function, other_function)
-                #print(value)
-                print("do we cover their coefficients?", covered_by_us)
-                print("do they cover our coefficients?", covered_by_them)
+                if do_print_detail:
+                    print("do we cover their coefficients?", covered_by_us)
+                    print("do they cover our coefficients?", covered_by_them)
 
                 if value < 0:
                     if covered_by_us:
-                        print("covering theirs   - idx", instance, "\n")
+                        if do_print_detail:
+                            print("covering theirs   - idx", instance, "\n")
                         return
                     continue
                 if value > 0:
                     if covered_by_them:
                         if merged:
-                            print("removing this   - idx", instance)
+                            if do_print_detail:
+                                print("removing this   - idx", instance)
                             function.assign_to(DelayFunction_v2())
                             merged_at.add(instance)
                             continue
-                        print("assigning this   - idx", instance)
+                        if do_print_detail:
+                            print("assigning this   - idx", instance)
                         function.assign_to(other_function)
                         merged = True
                         merged_at.add(instance)
-                    #if i_i == len(self.instances) - 1 and f_i == len(functions) - 1:
                     continue
 
                 if covered_by_us:
-                    print("discarding theirs - idx", instance, f"({value})" "\n")
+                    if do_print_detail:
+                        print("discarding theirs - idx", instance, f"({value})" "\n")
                     return
 
         if merged:
             for pos in merged_at:
                 self.instances[pos] = [f for f in self.instances[pos] if not f.is_empty()]
-            print()
             return
 
         if covered_by_them:
@@ -830,30 +870,17 @@ class DelayFunctionList_v2:
             factor          = other_function.min_static_value(instance+1) - their_min_value
             new_instance    = math.ceil((this_min_value - their_min_value + 1) / factor)
             their_min_value = other_function.min_static_value(new_instance)
-            print(f"{new_instance:>2} ->", their_min_value, "appended (1)\n")
+            if do_print_detail:
+                print(f"{new_instance:>2} ->", their_min_value, "appended (1)\n")
         else:
             new_instance    = instance
             their_min_value = other_function.min_static_value(new_instance)
-            print(f"{new_instance:>2} ->", their_min_value, "appended (2)\n")
+            if do_print_detail:
+                print(f"{new_instance:>2} ->", their_min_value, "appended (2)\n")
 
         assert new_instance >= 0
         if new_instance not in self.instances:
             self.instances[new_instance] = []
-            # function = self.instances[new_instance]
-            # covered_by_them = all((v.name in other_function.coefficients
-            #                        and function.coefficients.count(v.name) <= other_function.coefficients.count(v.name)
-            #                        ) for v in function.coefficients)
-            # covered_by_us   = all((v.name in function.coefficients
-            #                        and other_function.coefficients.count(v.name) <= function.coefficients.count(v.name)
-            #                        ) for v in other_function.coefficients)
-
-            # print_err(f"WARN: overriding idx {new_instance}, old function:", function, "with new function:", other_function)
-            # print("do we cover their coefficients?", covered_by_us)
-            # print("do they cover our coefficients?", covered_by_them)
-            # print()
-
 
         self.instances[new_instance] += [other_function.copy()]
         return self
-
-do_print=True

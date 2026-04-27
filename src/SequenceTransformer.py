@@ -148,6 +148,7 @@ class SequenceTransformer:
             
             # delays of all ingoing nodes
             in_node_delays = self.__get_delays_of_in_nodes(node, node_delays)
+            if self.verbose: in_node_delays = list(in_node_delays)
 
             # inputs from ingoing edges
             input_delays   = self.__get_input_delays(node, instr, input_timings)
@@ -185,7 +186,7 @@ class SequenceTransformer:
         """ 
         Returns the delays of all preceeding nodes. 
         """
-        return list(node_delays[in_node.name] for in_node in node.getAllInNodes() if in_node.name in node_delays)
+        return (node_delays[in_node.name] for in_node in node.getAllInNodes() if in_node.name in node_delays)
 
     def __get_dynamic_delays(self, node: 'Node', dynamic_vars: Dict[str, int|float], instr_idx: int) -> int|float :
         """ 

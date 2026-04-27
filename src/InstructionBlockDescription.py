@@ -89,6 +89,9 @@ class InstructionBlockDescription:
             _ignored_registers_.add(register)
         self.instructions.append(instr)
 
+    def target_registers(self):
+        return sorted(set(instr.rd for instr in self.instructions if instr.rd is not None))
+
     def is_valid_code_block(self):
         return all(i.is_valid() for i in self.instructions)
 
