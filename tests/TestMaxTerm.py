@@ -124,8 +124,8 @@ def MaxFunction_merge():
     reference = DelayFunctionList((reference, dynamic))
 
     assert functions.merge(dynamic) == reference, f"DelayFunctionList([{static}]).merge({dynamic}) should equal {reference}"
-    
-    # 3. merging should create deep copies of the input function 
+
+    # 3. merging should create deep copies of the input function
     assert static == static_orig, f"DelayFunctionList().merge() should not alter input function!"
     assert dynamic == dynamic_orig, f"DelayFunctionList().merge() should not alter input function!"
 
@@ -142,40 +142,29 @@ def MaxFunction_merge_v2():
     f2.append_coefficient(DelayVariable("d1"))
 
     funcs = DelayFunctionList_v2()
-    op(funcs.instances)
     funcs.merge(f1)
-    op(funcs.instances)
     funcs.merge(f2)
-    op(funcs.instances)
     funcs.merge(f2)
-    op(funcs.instances)
 
     f3 = DelayFunction_v2()
     f3.append_static_var(DelayVariable("", 1))
     f3.append_coefficient(DelayVariable("d1"))
     funcs.merge(f3)
-    op(funcs.instances)
 
-    #print("#"*10)
     f4 = DelayFunction_v2()
     f4.append_static_var(DelayVariable("", 4))
     f4.append_coefficient(DelayVariable("d2"))
     funcs.merge(f4)
-    op(funcs.instances)
-    #op(funcs, funcs.instances)
 
     f5 = DelayFunction_v2()
     f5.append_static_var(DelayVariable("", 5))
     f5.append_coefficient(DelayVariable("d1", 1))
     f5.append_coefficient(DelayVariable("d2", 2))
     funcs.merge(f5)
-    op(funcs.instances)
-    #op(funcs, funcs.instances)
 
     f6 = DelayFunction_v2()
     f6.append_static_var(DelayVariable("", 10))
     funcs.merge(f6)
-    op(funcs.instances)
 
 
 
@@ -187,7 +176,7 @@ def MaxFunction_resolved():
     function.append_static_var(DelayVariable("Y", 3))
     function = function.replace({"X":DelayVariable("", 1)})
     assert function.max_delay("Y") == 3, f"{function.max_delay("Y")} != 3"
-    
+
     function.append_coefficient(DelayVariable("X", 2))
     function = function.replace({"X":DelayVariable("", 1)})
     assert function.max_delay("Y") == 5, f"{function.max_delay("Y")} != 5"

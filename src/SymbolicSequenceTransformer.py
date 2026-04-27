@@ -139,7 +139,7 @@ class SymbolicSequenceTransformer:
 
         # delays of visited nodes
         node_delays = {}
-        # make copy to avoid overriding input timings 
+        # make copy to avoid overriding input timings
         output_timings = input_timings.copy()
 
         visited = set()
@@ -150,7 +150,7 @@ class SymbolicSequenceTransformer:
             node = queue.popleft()
             assert node not in visited, f"Node '{node.name}' visited twice!"
             visited.add(node)
-            
+
             functions = DelayFunctionList_v2()
             # delays of all ingoing nodes
             in_node_delays = self.__get_delays_of_in_nodes(node, node_delays)
@@ -174,7 +174,8 @@ class SymbolicSequenceTransformer:
             # symbolic variable
             is_symbolic = any(name in node.name and "stage" not in node.name for name in self.symbolic_vars)
             if is_symbolic:
-                functions.append_coefficient(DelayVariable(node.name, 0))
+                print(node.name, "SYMBOLIC!")
+                functions.append_coefficient(DelayVariable(node.name, 1))
             elif node.getDelay() > 0:
                     functions.plus(node.getDelay())
 
@@ -200,14 +201,14 @@ class SymbolicSequenceTransformer:
         return output_timings
 
     def __get_delays_of_in_nodes(self, node: 'Node', node_delays: Dict[str, int|float]) -> "iterable":
-        """ 
-        Returns the delays of all preceeding nodes. 
+        """
+        Returns the delays of all preceeding nodes.
         """
         return list(node_delays[in_node.name] for in_node in node.getAllInNodes() if in_node.name in node_delays)
 
     def __get_dynamic_delays(self, node: 'Node', dynamic_vars: Dict[str, int|float], instr_idx: int) -> int|float :
-        """ 
-        Returns the dynamic delay in case the node is associated with a resource model. Otherwise returns a null delay. 
+        """
+        Returns the dynamic delay in case the node is associated with a resource model. Otherwise returns a null delay.
         """
         if not node.hasDynamicDelay():
             return 0
@@ -225,8 +226,8 @@ class SymbolicSequenceTransformer:
         raise RuntimeError(f"Unknown dynamic delay for node '{node.name}'!")
 
     def __get_input_delays(self, node: 'Node', instr: 'InstructionDescription', timings: 'SymbolicTimings') -> "iterable":
-        """ 
-        Returns a list of ingoing timings derived from the timing variables, registers, and other connector models. 
+        """
+        Returns a list of ingoing timings derived from the timing variables, registers, and other connector models.
         """
         static_delays = []
         for edge in node.getAllInEdges():
@@ -243,8 +244,8 @@ class SymbolicSequenceTransformer:
         return static_delays
 
     def __set_output_delays(self, node: 'Node', node_delay: int|float, instr: 'InstructionDescription', output_timings: 'SymbolicTimings'):
-        """ 
-        Updates the outgoing timings of timing variables, registers, and other connector models. 
+        """
+        Updates the outgoing timings of timing variables, registers, and other connector models.
         """
         for edge in node.getAllOutEdges():
             if edge.isDynamic():
