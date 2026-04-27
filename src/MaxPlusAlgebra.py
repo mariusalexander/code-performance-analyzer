@@ -834,15 +834,17 @@ class DelayFunctionList_v2(list):
                     print("covering theirs   - idx", instance, "\n")
                     return
                 continue
-            if value > 0 and covered_by_them:
-                print("assigning this   - idx", instance, "\n")
-                function.assign_to(other_function)
-                if i == len(self.instances) - 1:
-                    return
+            if value > 0:
+                if covered_by_them:
+                    print("assigning this   - idx", instance)
+                    function.assign_to(other_function)
+                    if i == len(self.instances) - 1:
+                        print("finishing\n")
+                        return
                 continue
             
             if covered_by_us:
-                print("discarding theirs - idx", instance, "\n")
+                print("discarding theirs - idx", instance, f"({value})" "\n")
                 return
 
         if covered_by_them:

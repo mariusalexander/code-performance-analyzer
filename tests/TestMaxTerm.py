@@ -142,21 +142,26 @@ def MaxFunction_merge_v2():
     f2.append_coefficient(DelayVariable("d1"))
 
     funcs = DelayFunctionList_v2()
+    op(funcs.instances)
     funcs.merge(f1)
+    op(funcs.instances)
     funcs.merge(f2)
+    op(funcs.instances)
     funcs.merge(f2)
+    op(funcs.instances)
 
     f3 = DelayFunction_v2()
     f3.append_static_var(DelayVariable("", 1))
     f3.append_coefficient(DelayVariable("d1"))
     funcs.merge(f3)
+    op(funcs.instances)
 
     #print("#"*10)
     f4 = DelayFunction_v2()
     f4.append_static_var(DelayVariable("", 4))
     f4.append_coefficient(DelayVariable("d2"))
     funcs.merge(f4)
-    print(funcs)
+    op(funcs.instances)
     #op(funcs, funcs.instances)
 
     f5 = DelayFunction_v2()
@@ -164,8 +169,13 @@ def MaxFunction_merge_v2():
     f5.append_coefficient(DelayVariable("d1", 1))
     f5.append_coefficient(DelayVariable("d2", 2))
     funcs.merge(f5)
-    print(funcs)
+    op(funcs.instances)
     #op(funcs, funcs.instances)
+
+    f6 = DelayFunction_v2()
+    f6.append_static_var(DelayVariable("", 10))
+    funcs.merge(f6)
+    op(funcs.instances)
 
 
 
