@@ -114,11 +114,11 @@ class TimingsPrinter:
         header_row1 += f" {self.w_spacer} ".join(f'{name:>{spacing}}' for name, spacing in self.register_spacing.items())
         header_row2 += f" {self.w_spacer} ".join(self.register_header.rjust(spacing) for spacing in self.register_spacing.values())
 
-        self.fprint(header_row1)
-        self.fprint(header_row2)
+        self.print(header_row1)
+        self.print(header_row2)
         if self.h_line:
-            #fprint("".join(':' if char in (*self.s_spacer, *self.w_spacer) else self.h_line for char in header_row2))
-            self.fprint(self.h_line * len(max(header_row1, header_row2)))
+            #self.print("".join(':' if char in (*self.s_spacer, *self.w_spacer) else self.h_line for char in header_row2))
+            self.print(self.h_line * len(max(header_row1, header_row2)))
 
     def print_row(self, timings: 'Timings', instr_name:str, instr_idx:int, stall_cycles=0):
         row =  f"{instr_idx:>4}. {self.s_spacer} {instr_name:>11} {self.w_spacer} "
@@ -127,4 +127,4 @@ class TimingsPrinter:
         row += f" {self.w_spacer} ".join(self.__register_column(timings.register_models[model]).rjust(spacing) for model, spacing in self.register_spacing.items())
         if stall_cycles > 0:
             row += f" (+{stall_cycles} CC)"
-        self.fprint(row)
+        self.print(row)
