@@ -9,14 +9,17 @@ from objprint import op
 
 from backends.schedule_viewer.SchedulingModelViewer import SchedulingModelViewer
 
-from src.Common import Profile, Print, dotdict, find_variant
+from src.Common import Profile, Print, print_err, dotdict, find_variant
 from src.InstructionBlockDescription import InstructionBlockDescription
 from src.BlockSchedulingTransformer import BlockSchedulingTransformer
+
 from src.DelayGraph import DelayGraphTransformer
 from src.DelayGraphViewer import DelayGraphViewer
 from src.DelayAnalyzer import DelayAnalyzer
 from src.InputVectorGenerator import InputVector, InputVectorGenerator, PipelineDescription
 from src.MaxPlusAlgebra import DelayVariable, DelayFunction_v2, DelayFunctionList
+
+from src.SymbolicSequenceTransformer import SymbolicSequenceTransformer
 from src.SequenceTransformer import SequenceTransformer
 from src.TimingsAnalyzer import TimingsAnalyzer
 from src.TimingsPrinter import TimingsPrinter
@@ -63,7 +66,7 @@ def main():
     args_parser.add_argument("--examples"         , nargs='?', type=str, const='*', help="Loads example basic blocks. A Wildcard pattern can be used to load only certain tests.")
     args_parser.add_argument("--files"            , nargs='+', type=valid_path, const=None, help="Parses code blocks from disk. Multiple input files can be specified.")
 
-    args_parser.add_argument("--symbolic-vars"    , nargs=  1, type=str, default=[""], help="Comma separated list of keywords to find nodes whose delay should be made symbolic.")
+    args_parser.add_argument("--variable-delays"    , nargs=  1, type=str, default=[""], help="Comma separated list of keywords to find nodes whose delay should be made symbolic.")
     args_parser.add_argument("--brpred"           , nargs=  1, type=str, default=None, help="...")
     args_parser.add_argument("--resolve-later"    , action="store_true", help="Whether to resolve the outputs as a function of the inputs")
     args_parser.add_argument("--dynamic-delays"   , nargs=  1, type=int, default=[None], help="...")
@@ -77,7 +80,8 @@ def main():
     args_parser.add_argument("--exit"             , action="store_true", help="Exits the programm before estimating the CPI.")
     args_parser.add_argument("--suffix"           , nargs=  1, type=str, default=[None], help="...")
 
-    args_parser.add_argument("-s", "--sequenced"  , action="store_true", help="Analyze basic blocks ")
+    args_parser.add_argument("-s", "--sequenced"  , action="store_true", help="Determine CPI of basic blocks by sequentially evaluating the timing model for each instruction.")
+    args_parser.add_argument("--sym-sequened"     , action="store_true", help="Analyze basic blocks ")
     
     args = args_parser.parse_args()
 
@@ -109,7 +113,7 @@ def main():
     if sum(bool(arg) for arg in (args.files, args.tests, args.examples)) > 1:
         args_parser.error(f"Conflicting arguments: either use --files, --examples, or --tests!")
 
-    args.symbolic_vars = list(filter(lambda arg: len(arg) > 0, (arg.strip() for arg in args.symbolic_vars[0].split(","))))
+    args.variable_delays = list(filter(lambda arg: len(arg) > 0, (arg.strip() for arg in args.variable_delays[0].split(","))))
 
     if args.brpred:
         [args.brpred] = args.brpred
@@ -166,6 +170,10 @@ def main():
         print(" > ERROR: No code blocks to generate schedule models!")
         exit(1)
 
+    if args.sym_sequened:
+        sequence_model = SymbolicSequenceTransformer(verbose=args.verbose, symbolic_vars=args.variable_delays) \
+            .analyze_all_variants(schedule_model, struct_model, code_blocks)
+        exit(0)
     if args.sequenced:
         sequence_model = SequenceTransformer(verbose=args.verbose, 
                                              default_dynamic_delay=args.dynamic_delays,
@@ -223,12 +231,15 @@ def main():
         # print total CPI if possible
         print()
         for variant_name in final_results:
-            result = final_results[variant_name]
+            result       = final_results[variant_name]
             total_weight = sum(bb.weight for bb in result.values() if bb.weight is not None)
             if total_weight == 0:
-                print("WARNING: Cannot determine total CPI, missing weights for basic blocks!")
-                continue
-            print(variant_name.ljust(30), f"total CPI: {sum((bb.cpi * bb.weight / total_weight) for bb in result.values()):.6f} \ttotal weight: {total_weight * 100:.3f}%")
+                print_err("WARN: Cannot determine total CPI, missing weights for basic blocks!")
+                break
+
+            print(f"Variant: {sequence_variant.name:>15},\t",
+                  f"total CPI: {sum((bb.cpi * bb.weight / total_weight) for bb in result.values()):.6f},\t", 
+                  f"total weight: {total_weight * 100:.5f}%")
 
         exit(0)
 
@@ -276,7 +287,7 @@ def main():
     # delay model
     delay_model = DelayGraphTransformer(verbose=args.verbose, 
                                         default_dynamic_delay=args.dynamic_delays) \
-        .transform(block_schedule, code_blocks, symbolic_vars=args.symbolic_vars)
+        .transform(block_schedule, code_blocks, variable_delays=args.variable_delays)
 
     results = {}
     # cpi analysis 
@@ -307,7 +318,7 @@ def main():
 
             # can only evaluate term if there are no symbolic variables
             output_vector_1st_iter = None
-            if not args.symbolic_vars and all(dyn.lower() in input_vector for dyn in block_function.dynamic_variables()):
+            if not args.variable_delays and all(dyn.lower() in input_vector for dyn in block_function.dynamic_variables()):
                 output_vector_1st_iter = analyzer.evaluate(applied_functions)
             elif args.cpi:
                 print(f"Error: Unknown delays! ({block_function.name})\n", input_vector)
@@ -325,7 +336,7 @@ def main():
                 input_vector.merge(output_vector)
                 block_function.set_input_vector(input_vector)
 
-                delay_graph_2nd_iter = DelayGraphTransformer(verbose=args.verbose).transform_block(block_function, delay_graph.code_block, symbolic_vars=args.symbolic_vars)
+                delay_graph_2nd_iter = DelayGraphTransformer(verbose=args.verbose).transform_block(block_function, delay_graph.code_block, variable_delays=args.variable_delays)
                 output_vector_2nd_iter = analyzer.evaluate(delay_graph_2nd_iter.outputs())
                 output_vector = output_vector_2nd_iter
 

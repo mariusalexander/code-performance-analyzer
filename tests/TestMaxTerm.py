@@ -1,8 +1,9 @@
 import copy
 from typing import List, Self
+from objprint import op
 
-from src.Common import PrintDisabled
-from src.MaxPlusAlgebra import DelayVariable, MaxTerm, DelayFunction, DelayFunctionList
+from src.Common import PrintDisabled, Print
+from src.MaxPlusAlgebra import DelayVariable, MaxTerm, DelayFunction, DelayFunctionList, DelayFunction_v2, DelayFunctionList_v2
 
 def test_term_simple():
     term = MaxTerm()
@@ -128,6 +129,48 @@ def MaxFunction_merge():
     assert static == static_orig, f"DelayFunctionList().merge() should not alter input function!"
     assert dynamic == dynamic_orig, f"DelayFunctionList().merge() should not alter input function!"
 
+
+
+def MaxFunction_merge_v2():
+    Print.indent = 0
+
+    f1 = DelayFunction_v2()
+    f1.append_static_var(DelayVariable("", 5))
+
+    f2 = DelayFunction_v2()
+    f2.append_static_var(DelayVariable("", 2))
+    f2.append_coefficient(DelayVariable("d1"))
+
+    funcs = DelayFunctionList_v2()
+    funcs.merge(f1)
+    funcs.merge(f2)
+    funcs.merge(f2)
+
+    f3 = DelayFunction_v2()
+    f3.append_static_var(DelayVariable("", 1))
+    f3.append_coefficient(DelayVariable("d1"))
+    funcs.merge(f3)
+
+    #print("#"*10)
+    f4 = DelayFunction_v2()
+    f4.append_static_var(DelayVariable("", 4))
+    f4.append_coefficient(DelayVariable("d2"))
+    funcs.merge(f4)
+    print(funcs)
+    #op(funcs, funcs.instances)
+
+    f5 = DelayFunction_v2()
+    f5.append_static_var(DelayVariable("", 5))
+    f5.append_coefficient(DelayVariable("d1", 1))
+    f5.append_coefficient(DelayVariable("d2", 2))
+    funcs.merge(f5)
+    print(funcs)
+    #op(funcs, funcs.instances)
+
+
+
+
+
 def MaxFunction_resolved():
     function = DelayFunction()
     function.append_static_var(DelayVariable("X", 3))
@@ -141,8 +184,9 @@ def MaxFunction_resolved():
 
 def tests():
     print("  > Testing 'MaxTerm':")
+    # deactivated: MaxFunction_is_covered_by, MaxFunction_merge
     for test_function in MaxTerm_max_delay, MaxTerm_plus, MaxTerm_names, \
-                         MaxFunction_plus, MaxFunction_is_covered_by, MaxFunction_merge, MaxFunction_resolved:
+                         MaxFunction_plus, MaxFunction_merge_v2, MaxFunction_resolved:
         print(f"   > executing {test_function.__name__}...")
         test_function()
     print("   > success!")

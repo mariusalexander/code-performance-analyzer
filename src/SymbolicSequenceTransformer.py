@@ -9,21 +9,26 @@ from src.InstructionBlockDescription import InstructionBlockDescription, Instruc
 from src.Timings import Timings
 from src.TimingsPrinter import TimingsPrinter
 
+from src.MaxPlusAlgebra import DelayVariable, MaxTerm, DelayFunction, DelayFunctionList_v2
+
 from meta_models.scheduling_model.SchedulingModel import SchedulingModel, Variant as SchedVariant, SchedulingFunction, Node
 from meta_models.structural_model.StructuralModel import StructuralModel, Variant as StructVariant
 
-class SequenceTimingModel:
+class SymbolicTimings(Timings):
+    pass
+
+class SymbolicSequenceTimingModel:
 
     def __init__(self):
-        self.variants:List['SequenceTimingVariant'] = []
+        self.variants:List['SymbolicSequenceTimingVariant'] = []
 
-    def create_variant(self, name: str) -> 'SequenceTimingVariant':
-        variant = SequenceTimingVariant(name)
+    def create_variant(self, name: str) -> 'SymbolicSequenceTimingVariant':
+        variant = SymbolicSequenceTimingVariant(name)
         self.variants.append(variant)
         return variant
 
 
-class SequenceTimingVariant:
+class SymbolicSequenceTimingVariant:
 
     def __init__(self, name: str):
         self.name    = name
@@ -35,10 +40,9 @@ class SequenceTimingVariant:
         self.timings_history[code_block.name] = timings_history
 
 
-class SequenceTransformer:
-    """ Performs a static timing analysis on a code block similarly to how the C++ timing model operates. """
+class SymbolicSequenceTransformer:
 
-    def __init__(self, verbose=False, accumulate_timings=True, print_history=False, default_dynamic_delay=None):
+    def __init__(self, verbose=False, accumulate_timings=True, print_history=False, default_dynamic_delay=None, symbolic_vars=[]):
         self.verbose                = verbose
         # whether to accumulate the timings of each instructions, may have slight performance impact
         self.accumulate_timings     = print_history or accumulate_timings
@@ -47,6 +51,7 @@ class SequenceTransformer:
         self.default_dynamic_delay  = default_dynamic_delay
         # cache for scheduling functions
         self.instr2schedfunc        = {}
+        self.symbolic_vars          = symbolic_vars
 
     def __find_scheduling_function(self, sched_variant, instr_name):
         """
@@ -61,27 +66,27 @@ class SequenceTransformer:
             return function
         raise RuntimeError(f"Scheduling function '{instr_name}' not found!")
 
-    def analyze_all_variants(self, sched_model: 'SchedulingModel', struct_model: 'StructuralModel', code_blocks: List['InstructionBlockDescription']) -> 'SequenceTimingModel' :
+    def analyze_all_variants(self, sched_model: 'SchedulingModel', struct_model: 'StructuralModel', code_blocks: List['InstructionBlockDescription']) -> 'SymbolicSequenceTimingModel' :
         """
-        Performs the sequence analysis for all variants in the schedule model on all code blocks.
+        Performs the symbolic sequence analysis for all variants in the schedule model on all code blocks.
         """
-        print("\n-- TRANSFORM: SEQUENCE_TRANSFORMER --")
+        print("\n-- TRANSFORM: SYMBOLIC_SEQUENCE_TRANSFORMER --")
 
-        model = SequenceTimingModel()
-        with Profile(" > applying sequence transform to all variants"):
+        model = SymbolicSequenceTimingModel()
+        with Profile(" > applying symbolic sequence transform to all variants"):
             for sched_variant in sched_model.getAllVariants():
-                print(f" > applying sequence transform to variant {sched_variant.name}")
+                print(f" > applying symbolic sequence transform to variant {sched_variant.name}")
                 struct_variant = find_variant(struct_model, sched_variant.name)
                 variant = model.create_variant(sched_variant.name)
                 self.__analyze_variant(variant, sched_variant, struct_variant, code_blocks)
         return model
 
-    def __analyze_variant(self, variant: 'SequenceTimingVariant', sched_variant: 'SchedulingModel', struct_variant: 'StructuralModel', code_blocks: List['InstructionBlockDescription']):
+    def __analyze_variant(self, variant: 'SymbolicSequenceTimingVariant', sched_variant: 'SchedulingModel', struct_variant: 'StructuralModel', code_blocks: List['InstructionBlockDescription']):
         """
-        Performs the sequence analysis on all code blocks for the given schedule model variant.
+        Performs the symbolic sequence analysis on all code blocks for the given schedule model variant.
         """
         self.instr2schedfunc = {}
-        with Profile("  > applying sequence transform to all code blocks"):
+        with Profile("  > applying symbolic sequence transform to all code blocks"):
             for code_block in code_blocks:
                 with Profile(f"   >"):
                     timings, timings_history = self.__analyze_basic_block(sched_variant, struct_variant, code_block)
@@ -89,9 +94,9 @@ class SequenceTransformer:
 
     def __analyze_basic_block(self, sched_variant: 'SchedVariant', struct_variant: 'StructVariant', code_block: 'InstructionBlockDescription') -> 'Timings':
         """
-        Performs the sequence analysis on the given code block for the given schedule model variant.
+        Performs the symbolic sequence analysis on the given code block for the given schedule model variant.
         """
-        print(f"  > applying sequence transform to code block '{code_block.name}'...")
+        print(f"  > applying symbolic sequence transform to code block '{code_block.name}'...")
 
         if not code_block.is_basic_block():
             instructions = list((idx, instr) for idx, instr in enumerate(code_block.instructions[:-1]) if instr.is_branch())
@@ -146,29 +151,42 @@ class SequenceTransformer:
             assert node not in visited, f"Node '{node.name}' visited twice!"
             visited.add(node)
             
+            functions = DelayFunctionList_v2()
             # delays of all ingoing nodes
             in_node_delays = self.__get_delays_of_in_nodes(node, node_delays)
+            for in_node in in_node_delays:
+                for other_function in in_node:
+                    functions.merge(other_function)
 
             # inputs from ingoing edges
             input_delays   = self.__get_input_delays(node, instr, input_timings)
+            for in_delay in input_delays:
+                if isinstance(in_delay, DelayFunctionList_v2):
+                    for other_function in in_delay:
+                        functions.merge(other_function)
+                else:
+                    functions.append_static_var(DelayVariable('', in_delay))
 
-            # dynamic delay
             dynamic_delay  = self.__get_dynamic_delays(node, dynamic_vars, instr_idx)
+            if dynamic_delay > 0:
+                functions.plus(dynamic_delay)
 
-            # evaluate delay
-            node_delay  = max(0, 0, *input_delays, *in_node_delays)
-            node_delay += node.getDelay() + dynamic_delay
+            # symbolic variable
+            is_symbolic = any(name in node.name and "stage" not in node.name for name in self.symbolic_vars)
+            if is_symbolic:
+                functions.append_coefficient(DelayVariable(node.name, 0))
+            elif node.getDelay() > 0:
+                    functions.plus(node.getDelay())
 
-            node_delays[node.name] = node_delay
+            #functions = functions.simplified()
+            node_delays[node.name] = functions
 
             if self.verbose:
-                print(f"    > {node.name:<22} = {node_delay:>3} = " +\
-                     (f"max({', '.join(str(v) for v in chain(input_delays, in_node_delays) if v > 0)})") + \
-                     (f" + {node.getDelay()}" if node.getDelay() > 0 else '') + \
-                     (f" + {dynamic_delay}"   if dynamic_delay > 0 else ''))
+                with Print.indent_scope(31):
+                    print(f"    > {node.name:<22} = {functions}")
 
             # set outgoing edges
-            self.__set_output_delays(node, node_delay, instr, output_timings)
+            self.__set_output_delays(node, functions, instr, output_timings)
 
             # iterate over all sucessor nodes for which all dependencies have been met
             for next_node in node.getAllOutNodes():
@@ -206,7 +224,7 @@ class SequenceTransformer:
         # unmatched delay
         raise RuntimeError(f"Unknown dynamic delay for node '{node.name}'!")
 
-    def __get_input_delays(self, node: 'Node', instr: 'InstructionDescription', timings: 'Timings') -> "iterable":
+    def __get_input_delays(self, node: 'Node', instr: 'InstructionDescription', timings: 'SymbolicTimings') -> "iterable":
         """ 
         Returns a list of ingoing timings derived from the timing variables, registers, and other connector models. 
         """
@@ -224,7 +242,7 @@ class SequenceTransformer:
 
         return static_delays
 
-    def __set_output_delays(self, node: 'Node', node_delay: int|float, instr: 'InstructionDescription', output_timings: 'Timings'):
+    def __set_output_delays(self, node: 'Node', node_delay: int|float, instr: 'InstructionDescription', output_timings: 'SymbolicTimings'):
         """ 
         Updates the outgoing timings of timing variables, registers, and other connector models. 
         """

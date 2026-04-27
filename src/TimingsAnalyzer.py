@@ -3,7 +3,7 @@
 from typing import List, Dict, Optional
 from collections import deque
 
-from src.Common import Print, dotdict, err_print
+from src.Common import Print, dotdict, print_err
 from src.InstructionBlockDescription import InstructionBlockDescription
 from src.Timings import Timings
 
@@ -143,7 +143,7 @@ class TimingsAnalyzer:
             latency = self.__get_latency_of_stage(source_mirco_op, current_stage.name)
             # resources along the way need more than one cycle -> stage will always cause stalls
             if latency > 1:
-                err_print(f"WARN: mirco-op. '{current_stage.name}' of instr. '{instr_name}' will always induce +{latency - 1} stall cycle(s)!")
+                print_err(f"WARN: mirco-op. '{current_stage.name}' of instr. '{instr_name}' will always induce +{latency - 1} stall cycle(s)!")
                 latency = 1
             assert latency >= 0, f"Stage '{current_stage.name}' of instr. '{instr_name}' finishes before mirco-op started '{source_mirco_op.name}'?"
             current_cc = input_cc + latency

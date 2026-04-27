@@ -57,7 +57,7 @@ class Print:
             Print.indent = self.old_indent
 
 # prints to stderr
-def err_print(*args, **kwargs):
+def print_err(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 # finds a variant with the given name in a schedule or structural model.

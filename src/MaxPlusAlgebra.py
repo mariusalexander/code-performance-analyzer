@@ -1,7 +1,10 @@
+import math
 from itertools import chain
 from typing import List, Dict, Optional, Self
 
-from src.Common import Print
+from src.Common import Print, print_err
+
+do_print=False
 
 class DelayVariable:
     """ Represents a variable in a max term, associated with an added delay. """
@@ -452,13 +455,16 @@ class DelayFunction_v2:
     def is_covered_by(self, other) -> bool:
         # max(4 + 3A + 2B)
         # max(6 + 2A + 1B)
-        if not all((v.name in other.coefficients and self.coefficients.count(v.name) <= other.coefficients.count(v.name)) for v in self.coefficients):
+        if not all((v.name in other.coefficients
+                    and self.coefficients.count(v.name) <= other.coefficients.count(v.name)
+                    ) for v in self.coefficients):
             return False
-        
+
+        # assuming each symbolic variable is at least equal to 1
         offset = sum(v.delay for v in other.coefficients) - sum(v.delay for v in self.coefficients)
         assert offset >= 0
-        return  self.static_delay <= (other.static_delay + offset)
-            
+        return self.static_delay <= (other.static_delay + offset)
+
     def iter_static_vars(self) -> 'iterator':
         return iter(())
 
@@ -554,6 +560,12 @@ class DelayFunction_v2:
         value  = self.static_delay
         return value + offset
 
+    def min_static_value(self, static_value) -> Optional[int]:
+        if len(self.coefficients) == 0:
+            return self.static_delay
+        min_static_value = min(v.delay * static_value for v in self.coefficients)
+        return self.static_delay + min_static_value
+
     def merge(self, theirs) -> bool:
         assert isinstance(theirs, DelayFunction_v2), f"Incompatible type '{type(value)}'!"
         if theirs.is_empty():
@@ -578,7 +590,7 @@ class DelayFunctionList(list):
         super().__init__(iterable if iterable is not None else [])
 
     def __str__(self) -> str:
-        return f"max(" + (f",\n" + " " * Print.indent).join(str(f) for f in self) + ")"
+        return f"max(" + (f",\n" + " " * (Print.indent + 4)).join(str(f) for f in self) + ")"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -625,7 +637,7 @@ class DelayFunctionList(list):
         super().sort(key=lambda f: (len(f.static_vars), len(f.coefficients)) if not DelayFunctionList.use_v2 else (f.static_delay, len(f.coefficients))) 
         return self
 
-    def copy(self) -> 'DelayFunction':
+    def copy(self) -> 'DelayFunctionList':
         """ 
         Returns a deep copy of this object.
         """
@@ -651,16 +663,217 @@ class DelayFunctionList(list):
         Merges the other function with the existing functions such that redundant functions are not appended and functions with redundant variables are minimized.
         Returns self for operator chaining.
         """
+        if do_print and len(self):
+            print("MERGING...")
         for function in self:
+            if do_print:
+                print(str(function).ljust(40), "\t>?\t", str(other_function).ljust(40))
             result = function.merge(other_function)
             match result:
                 case 1:
+                    if do_print:
+                        print()
                     return self
                 case 2:
+                    if do_print:
+                        print()
                     self.append(other_function)
                     return self
                 case _:
                     continue
         # cannot be added -> append new function
+        if do_print and len(self):
+            print()
         self.append(other_function.copy())
         return self
+
+class DelayFunctionList_v2(list):
+
+    def __init__(self, iterable=None):
+        self.instances = {} 
+        super().__init__(iterable if iterable is not None else [])
+
+    def __str__(self) -> str:
+        return f"max(" + (f",\n" + " " * (Print.indent + 4)).join(str(f) for f in self) + ")"
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+    def append_static_var(self, variable:'DelayVariable') -> Self:
+        """ 
+        Appends and merges the static variable. Returns self for operator chaining.
+        """
+        functions = tuple(f for f in self if f.is_static())
+        for function in functions:
+            function.append_static_var(variable)
+        # add new term if no static term is available
+        if len(self) == 0 or len(functions) == 0:
+            function = DelayFunction_v2()
+            function.append_static_var(variable)
+            self.instances[0] = function
+            self.append(function)
+        return self
+
+    def append_coefficient(self, variable:'DelayVariable') -> Self:
+        """ 
+        Appends the coefficient to each function. Returns self for operator chaining.
+        """
+        for function in self:
+            function.append_coefficient(variable)
+        return self
+
+    def plus(self, value:int) -> Self:
+        """ 
+        Adds `value` to each function. Returns self for operator chaining.
+        """
+        for function in self:
+            function.plus(value)
+        return self
+
+    def sort(self) -> Self:
+        """
+        Sorts each function in place by its delay (descending).
+        For variables with same delay, alphabetical order is used.
+        All functions are then sorted by their number of static variables and coefficients.
+        Returns self for operator chaining.
+        """
+        for function in self:
+            function.sort()
+        super().sort(key=lambda f: (f.static_delay, len(f.coefficients)))
+        return self
+
+    def copy(self) -> 'DelayFunctionList_v2':
+        """ 
+        Returns a deep copy of this object.
+        """
+        cpy = DelayFunctionList_v2(f.copy() for f in self)
+        cpy.instances = { v: cpy[self.index(f)] for [v, f] in self.instances.items() }
+        cpy.validate()
+        return cpy
+
+    def simplified(self) -> 'DelayFunctionList_v2':
+        copy = DelayFunctionList_v2()
+        for function in self:
+            function = function.simplified()
+            copy.merge(function)
+        copy.validate()
+        return copy
+
+    def replace(self, variables:Dict[str, 'DelayVariable']) -> Self:
+        for function in self:
+            function.replace(variables)
+        self.validate()
+        return self
+
+    def validate(self):
+        ids = [id(f) for f in self]
+        assert all(id(f) in ids for f in self.instances.values())
+        assert len(self) == len(self.instances)
+
+    def evaluate(self) -> Optional[int]:
+        return max(f.evaluate() for f in self)
+
+    def merge(self, other_function:'DelayFunction') -> Self:
+        """
+        Merges the other function with the existing functions such that redundant functions are not appended and functions with redundant variables are minimized.
+        Returns self for operator chaining.
+        """
+        assert isinstance(other_function, DelayFunction_v2), f"Incompatible type '{type(value)}'!"
+        if other_function.is_empty():
+            return self
+
+        if do_print:
+            print(f"MERGING... '{other_function}'")
+
+        instances = len(self.instances)
+        if instances == 0:
+            self.append(other_function)
+            self.instances[0] = self[-1]
+            their_min_value = other_function.min_static_value(0)
+            print(f"{0:>2} ->", their_min_value, "appended\n")
+            return self
+
+        def check_merging(function, other_function):
+            their_min_value = other_function.min_static_value(instance)
+            this_min_value  = function.min_static_value(instance)
+
+            # can_merge_theirs = all((v.name in other_function.coefficients
+            #                         and function.coefficients.count(v.name) <= other_function.coefficients.count(v.name)
+            #                         ) for v in function.coefficients)
+            # can_merge_this   = all((v.name in function.coefficients
+            #                         and other_function.coefficients.count(v.name) <= function.coefficients.count(v.name)
+            #                         ) for v in other_function.coefficients)
+            # if not can_merge_this and not can_merge_theirs:
+            #     continue
+            if do_print:
+                max_len = max(7, len(str(function)), len(str(other_function)))
+                print(f"{instance:>2} ->", str(this_min_value).ljust(max_len-5), "\tvs.\t", str(their_min_value).ljust(max_len))
+            return their_min_value - this_min_value
+
+        for i, [instance, function] in enumerate(self.instances.items()):
+
+            # if do_print:
+            #     max_len = max(7, len(str(function)), len(str(other_function)))
+            #     print(str(function).ljust(max_len), "\tvs.\t", str(other_function).ljust(max_len))
+
+            covered_by_them   = all((v.name in other_function.coefficients
+                                    and function.coefficients.count(v.name) <= other_function.coefficients.count(v.name)
+                                    ) for v in function.coefficients)
+            covered_by_us     = all((v.name in function.coefficients
+                                     and other_function.coefficients.count(v.name) <= function.coefficients.count(v.name)
+                                     ) for v in other_function.coefficients)
+
+            
+            value = check_merging(function, other_function)
+            #print(value)
+            print("do we cover their coefficients?", covered_by_us)
+            print("do they cover our coefficients?", covered_by_them)
+
+            if value < 0:
+                if covered_by_us:
+                    print("covering theirs   - idx", instance, "\n")
+                    return
+                continue
+            if value > 0 and covered_by_them:
+                print("assigning this   - idx", instance, "\n")
+                function.assign_to(other_function)
+                if i == len(self.instances) - 1:
+                    return
+                continue
+            
+            if covered_by_us:
+                print("discarding theirs - idx", instance, "\n")
+                return
+
+        if covered_by_them:
+            this_min_value  = function.min_static_value(instance)
+            their_min_value = other_function.min_static_value(instance)
+            factor          = other_function.min_static_value(instance+1) - their_min_value
+            new_instance    = math.ceil((this_min_value - their_min_value + 1) / factor)
+        else:
+            new_instance    = instance
+
+        their_min_value = other_function.min_static_value(new_instance)
+        print(f"{new_instance:>2} ->", their_min_value, "appended\n")
+        assert new_instance >= 0
+        self.append(other_function.copy())
+        if new_instance in self.instances:
+            print_err(f"WARN: overriding idx {new_instance}, old function:", self.instances[new_instance])
+        self.instances[new_instance] = self[-1]
+        return self
+
+do_print=True
+
+
+        # assert isinstance(theirs, DelayFunction_v2), f"Incompatible type '{type(value)}'!"
+        # if theirs.is_empty():
+        #     return 1
+
+        # # check if other function covers any exisiting function or is covered
+        # ours = self
+        # if theirs.is_covered_by(ours):
+        #     return 1
+        # if ours.is_covered_by(theirs):
+        #     # replace our term with theirs
+        #     ours.assign_to(theirs)
+        #     return 1
