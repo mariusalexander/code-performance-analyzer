@@ -186,7 +186,7 @@ def main():
                 resources = (res for op in mirco_ops for res in op.getResources())
                 resources = (res for res in resources for var in args.variable_delays if var in res.name)
                 delay_vectors[variant.name] = { f"V0{r.name[r.name.index('_'):]}": DelayVariable('', r.delay) for r in resources }
-                print(variant.name, '\n', ',\n '.join(f"{name} = {var.delay}" for name, var in delay_vectors[variant.name].items()))
+                #print(variant.name, '\n', ',\n '.join(f"{name} = {var.delay}" for name, var in delay_vectors[variant.name].items()))
 
         sequence_model = SymbolicSequenceTransformer(verbose=args.verbose,
                                                      symbolic_vars=args.variable_delays,
@@ -200,58 +200,59 @@ def main():
             resolved_variants = {}
             final_results = {}
 
-            for variant_name, vector in delay_vectors.items():
-                resolved_variants[variant_name] = {}
-                final_results[variant_name] = {}
+            with Profile("delay analysis"):
+                for variant_name, vector in delay_vectors.items():
+                    resolved_variants[variant_name] = {}
+                    final_results[variant_name] = {}
 
-                for code_block in code_blocks:
-                    final_timings = sequence_variant.timings[code_block.name]
-                    resolved_variants[variant_name][code_block.name] = final_timings.copy()
-                    resolved_timings = resolved_variants[variant_name][code_block.name]
+                    for code_block in code_blocks:
+                        final_timings = sequence_variant.timings[code_block.name]
+                        resolved_variants[variant_name][code_block.name] = final_timings.copy()
+                        resolved_timings = resolved_variants[variant_name][code_block.name]
 
-                    if args.print:
-                        #resolved_timings = resolved_variants[variant_name][code_block.name].timing_vars
-                        for timing_var, history in final_timings.timing_vars.items():
-                            expression = history[0]
-                            if isinstance(expression, int) and expression == -1:
-                                continue
-                            #print(vector)
-                            resolved = expression.copy().replace(vector).evaluate()
-                            #print(variant_name, timing_var, TimingsPrinter.to_str(expression), "->", resolved)
-                            resolved_timings.timing_vars[timing_var][0] = resolved
-
-                        #resolved_timings = resolved_variants[variant_name][code_block.name].register_models
-                        for model, registers in final_timings.register_models.items():
-                            for reg, expression in  registers.items():
+                        if args.print:
+                            #resolved_timings = resolved_variants[variant_name][code_block.name].timing_vars
+                            for timing_var, history in final_timings.timing_vars.items():
+                                expression = history[0]
                                 if isinstance(expression, int) and expression == -1:
                                     continue
+                                #print(vector)
                                 resolved = expression.copy().replace(vector).evaluate()
-                                #print(variant_name, reg, TimingsPrinter.to_str(expression), "->", resolved)
-                                resolved_timings.register_models[model][reg] = resolved
+                                #print(variant_name, timing_var, TimingsPrinter.to_str(expression), "->", resolved)
+                                resolved_timings.timing_vars[timing_var][0] = resolved
 
-                        TimingsPrinter.print_history(code_block=code_block, timings_history=[resolved_timings])
-                    else:
-                        resolved_timings.timing_vars["EX_stage"][0] = resolved_timings.timing_vars["EX_stage"][0].copy().replace(vector).evaluate()
+                            #resolved_timings = resolved_variants[variant_name][code_block.name].register_models
+                            for model, registers in final_timings.register_models.items():
+                                for reg, expression in  registers.items():
+                                    if isinstance(expression, int) and expression == -1:
+                                        continue
+                                    resolved = expression.copy().replace(vector).evaluate()
+                                    #print(variant_name, reg, TimingsPrinter.to_str(expression), "->", resolved)
+                                    resolved_timings.register_models[model][reg] = resolved
 
-                    num_instructions   = len(code_block.instructions)
-                    total_stall_cycles = resolved_timings.timing_vars["EX_stage"][0] - (3 + num_instructions - 1)
-                    cpi = (num_instructions + total_stall_cycles) / num_instructions
+                            TimingsPrinter.print_history(code_block=code_block, timings_history=[resolved_timings])
+                        else:
+                            resolved_timings.timing_vars["EX_stage"][0] = resolved_timings.timing_vars["EX_stage"][0].copy().replace(vector).evaluate()
 
-                    if args.cpi:
-                        print(f"Variant: {variant_name:>15},\t",
-                            f"Code Block: {code_block.name:>10},",
-                            f"CPI: {cpi:>8.6f},",
-                            f"Instructions: {num_instructions:>3},",
-                            f"Stall cycles: {total_stall_cycles:>3},",
-                            f"Rel. Weight: {f'{code_block.weight:.5f}%' if code_block.weight else "??"}")
+                        num_instructions   = len(code_block.instructions)
+                        total_stall_cycles = resolved_timings.timing_vars["EX_stage"][0] - (3 + num_instructions - 1)
+                        cpi = (num_instructions + total_stall_cycles) / num_instructions
 
-                        #print(variant_name, code_block)
-                        final_results[variant_name][code_block.name] = dotdict({
-                            "num_instructions"  : num_instructions,
-                            "stall_cycles"      : total_stall_cycles,
-                            "cpi"               : cpi,
-                            "weight"            : code_block.weight
-                        })
+                        if args.cpi:
+                            print(f"Variant: {variant_name:>15},\t",
+                                f"Code Block: {code_block.name:>10},",
+                                f"CPI: {cpi:>8.6f},",
+                                f"Instructions: {num_instructions:>3},",
+                                f"Stall cycles: {total_stall_cycles:>3},",
+                                f"Rel. Weight: {f'{code_block.weight:.5f}%' if code_block.weight else "??"}")
+
+                            #print(variant_name, code_block)
+                            final_results[variant_name][code_block.name] = dotdict({
+                                "num_instructions"  : num_instructions,
+                                "stall_cycles"      : total_stall_cycles,
+                                "cpi"               : cpi,
+                                "weight"            : code_block.weight
+                            })
 
             # print total CPI if possible
             print()
@@ -276,49 +277,50 @@ def main():
 
         print("\n-- FRONTEND: DELAY ANALYSIS --")
         final_results = {}
-        for sequence_variant in sequence_model.variants:
-            assert sequence_variant.name not in final_results, \
-                   f"Duplicate result entry for variant '{variant.name}'!"
+        with Profile("delay analysis"):
+            for sequence_variant in sequence_model.variants:
+                assert sequence_variant.name not in final_results, \
+                    f"Duplicate result entry for variant '{variant.name}'!"
 
-            final_results[sequence_variant.name] = {}
-            sched_variant  = find_variant(schedule_model, sequence_variant.name)
-            struct_variant = find_variant(struct_model, sequence_variant.name)
+                final_results[sequence_variant.name] = {}
+                sched_variant  = find_variant(schedule_model, sequence_variant.name)
+                struct_variant = find_variant(struct_model, sequence_variant.name)
 
-            analyzer = TimingsAnalyzer(sched_variant=sched_variant, struct_variant=struct_variant, accumulate_stalls=args.print)
+                analyzer = TimingsAnalyzer(sched_variant=sched_variant, struct_variant=struct_variant, accumulate_stalls=args.print)
 
-            for code_block in code_blocks:
-                final_timings   = sequence_variant.timings[code_block.name]
-                timings_history = sequence_variant.timings_history[code_block.name]
-                results = analyzer.analyse_steady_state(code_block=code_block, final_timings=final_timings, timings_history=timings_history)
+                for code_block in code_blocks:
+                    final_timings   = sequence_variant.timings[code_block.name]
+                    timings_history = sequence_variant.timings_history[code_block.name]
+                    results = analyzer.analyse_steady_state(code_block=code_block, final_timings=final_timings, timings_history=timings_history)
 
-                if args.print_bb:
-                    print()
-                    print(f" > Code block of '{code_block.name}' ({sequence_variant.name}):")
-                    print(code_block)
+                    if args.print_bb:
+                        print()
+                        print(f" > Code block of '{code_block.name}' ({sequence_variant.name}):")
+                        print(code_block)
 
-                if args.print:
-                    print()
-                    print(f" > Timings of '{code_block.name}' ({sequence_variant.name}):")
-                    TimingsPrinter.print_history(code_block=code_block, timings_history=timings_history, stall_history=results.stall_history)
-                    print()
+                    if args.print:
+                        print()
+                        print(f" > Timings of '{code_block.name}' ({sequence_variant.name}):")
+                        TimingsPrinter.print_history(code_block=code_block, timings_history=timings_history, stall_history=results.stall_history)
+                        print()
 
-                if args.cpi:
-                    print(f"Variant: {sequence_variant.name:>15},\t",
-                          f"Code Block: {code_block.name:>10},",
-                          f"CPI: {results.cpi:>8.6f},",
-                          f"Instructions: {results.num_instructions:>3},",
-                          f"Stall cycles: {results.total_stall_cycles:>3},",
-                          f"Rel. Weight: {f'{code_block.weight:.5f}%' if code_block.weight else "??"}")
+                    if args.cpi:
+                        print(f"Variant: {sequence_variant.name:>15},\t",
+                            f"Code Block: {code_block.name:>10},",
+                            f"CPI: {results.cpi:>8.6f},",
+                            f"Instructions: {results.num_instructions:>3},",
+                            f"Stall cycles: {results.total_stall_cycles:>3},",
+                            f"Rel. Weight: {f'{code_block.weight:.5f}%' if code_block.weight else "??"}")
 
-                    assert code_block.name not in final_results[sequence_variant.name], \
-                           f"Duplicate result entry for code block '{code_block.name}'!"
+                        assert code_block.name not in final_results[sequence_variant.name], \
+                            f"Duplicate result entry for code block '{code_block.name}'!"
 
-                    final_results[sequence_variant.name][code_block.name] = dotdict({
-                        "num_instructions"  : results.num_instructions,
-                        "stall_cycles"      : results.total_stall_cycles,
-                        "cpi"               : results.cpi,
-                        "weight"            : code_block.weight
-                    })
+                        final_results[sequence_variant.name][code_block.name] = dotdict({
+                            "num_instructions"  : results.num_instructions,
+                            "stall_cycles"      : results.total_stall_cycles,
+                            "cpi"               : results.cpi,
+                            "weight"            : code_block.weight
+                        })
 
         # export results
         if isinstance(args.cpi, pathlib.Path):
