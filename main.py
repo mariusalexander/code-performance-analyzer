@@ -203,7 +203,7 @@ def main():
                 for variant_name, vector in delay_vectors.items():
                     assert variant_name not in final_results, \
                         f"Duplicate result entry for variant '{variant_name}'!"
-                        
+
                     final_results[variant_name] = {}
 
                     for code_block in code_blocks:

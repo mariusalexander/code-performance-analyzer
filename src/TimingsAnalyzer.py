@@ -29,16 +29,17 @@ class TimingsAnalyzer:
         Can also determine which instructions experience a stall cycle.
         """
         if final_timings is None:
-            assert len(timings_history) == len(code_block.instructions), "Invalid timings history!"
+            assert len(timings_history) == len(code_block.instructions), \
+                   "Cannot map timings to instructions!"
             final_timings = timings_history[-1]
-        if self.accumulate_stalls:
-            assert len(timings_history) == len(code_block.instructions), "Invalid timings history!"
 
-        expected_end_cycle = 0
         num_instructions   = len(code_block.instructions)
         stall_history      = []
 
         if self.accumulate_stalls:
+            assert len(timings_history) == len(code_block.instructions), \
+                   "Cannot map timings to instructions!"
+
             for instr_idx, instr in enumerate(code_block.instructions):
                 # NOTE: assuming commit-in-order
                 end_stage          = self.__get_expected_latency(instr.name)
@@ -77,13 +78,15 @@ class TimingsAnalyzer:
         Helper function to determine the cycle when the given instruction finishes (i.e. its latency).
         """
         # access cache
-        try: return self.instr2latencies[instr_name]
-        except KeyError: pass
+        if instr_name in self.instr2latencies:
+            return self.instr2latencies[instr_name]
+        # try: return self.instr2latencies[instr_name]
+        # except KeyError: pass
 
         has_timing_var = lambda e: not e.isDynamic() and e.getTimingVariable()
         [sched_function] = filter(lambda e: e.name == instr_name, self.sched_variant.getAllSchedulingFunctions())
         used_timing_vars = list(edge.getTimingVariable().name for node in sched_function.getAllNodes()
-                                                                  for edge in node.getAllOutEdges() if has_timing_var(edge))
+                                                              for edge in node.getAllOutEdges() if has_timing_var(edge))
         end_stage = self.__get_expected_end_cycle(used_timing_vars, sched_function, instr_name=instr_name)
         # cache expected latency of stage for current instruction
         self.instr2latencies[instr_name] = end_stage

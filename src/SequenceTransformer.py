@@ -52,8 +52,10 @@ class SequenceTransformer:
         Helper function to find the schedule function for a given isntruction name.
         """
         # access cache
-        try: return self.instr2schedfunc[instr_name]
-        except KeyError: pass
+        if instr_name in self.instr2schedfunc:
+            return self.instr2schedfunc[instr_name]
+        # try: return self.instr2schedfunc[instr_name]
+        # except KeyError: pass
 
         for function in filter(lambda e: e.name == instr_name, sched_variant.getAllSchedulingFunctions()):
             self.instr2schedfunc[instr_name] = function
