@@ -55,7 +55,7 @@ def MaxFunction_plus():
     function.plus(1)
     assert all(function.max_delay(v.name) == (reference[v.name] + 1) for v in function.iter_static_vars()), f"function {function} should equal {reference} + 1"
 
-    function.append_coefficient(DelayVariable("d1", 0))
+    function.append_coefficient(DelayVariable("d1", 1))
     function.plus(1)
     assert all(function.max_delay(v.name) == (reference[v.name] + 2) for v in function.iter_static_vars()), f"function {function} should equal {reference} + 1"
 
@@ -139,7 +139,7 @@ def MaxFunction_merge_v2():
 
     f2 = DelayFunction_v2()
     f2.append_static_var(DelayVariable("", 2))
-    f2.append_coefficient(DelayVariable("d1"))
+    f2.append_coefficient(DelayVariable("d1", 1))
 
     funcs = DelayFunctionList_v2()
     funcs.merge(f1)
@@ -148,12 +148,12 @@ def MaxFunction_merge_v2():
 
     f3 = DelayFunction_v2()
     f3.append_static_var(DelayVariable("", 1))
-    f3.append_coefficient(DelayVariable("d1"))
+    f3.append_coefficient(DelayVariable("d1", 1))
     funcs.merge(f3)
 
     f4 = DelayFunction_v2()
     f4.append_static_var(DelayVariable("", 4))
-    f4.append_coefficient(DelayVariable("d2"))
+    f4.append_coefficient(DelayVariable("d2", 1))
     funcs.merge(f4)
 
     f5 = DelayFunction_v2()
@@ -163,10 +163,15 @@ def MaxFunction_merge_v2():
     funcs.merge(f5)
 
     f6 = DelayFunction_v2()
-    f6.append_static_var(DelayVariable("", 10))
+    f6.append_static_var(DelayVariable("", 7))
     funcs.merge(f6)
 
-
+    print(funcs)
+    funcs.replace({"d1":DelayVariable("", 0)})
+    print(funcs)
+    funcs.replace({"d2":DelayVariable("", 0)})
+    print(funcs)
+    print(funcs.evaluate())
 
 
 

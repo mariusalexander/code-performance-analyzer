@@ -202,6 +202,9 @@ def main():
                 timings_history = sequence_variant.timings_history[code_block.name]
                 results = analyzer.analyse_steady_state(code_block=code_block, final_timings=final_timings, timings_history=timings_history)
                 
+                if args.print_bb:
+                    print(code_block)
+
                 if args.print:
                     print()
                     print(f" > Timings of '{code_block.name}' ({sequence_variant.name}):")

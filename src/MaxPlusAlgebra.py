@@ -564,9 +564,9 @@ class DelayFunction_v2:
         for var_name, new_var in variables.items():
             for var in self.coefficients:
                 if var.name == var_name:
-                    assert new_var.delay > 0
+                    assert new_var.delay >= 0
                     var.name   = new_var.name
-                    var.delay *= new_var.delay
+                    var.delay *= max(1, new_var.delay)
 
         offset = self.coefficients.count(variable_name="")
         if offset is not None:

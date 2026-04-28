@@ -102,9 +102,6 @@ def test_vectors(pattern=None):
     code_block.addInstruction("mul", rd =3, rs1=10, rs2=11)
     code_block.addInstruction("mul", rd =4, rs1=10, rs2=11)
     code_block.addInstruction("mul", rd =5, rs1=10, rs2=11)
-    code_block.addInstruction("mul", rd =2, rs1=10, rs2=11)
-    code_block.addInstruction("mul", rd =3, rs1=10, rs2=11)
-    code_block.addInstruction("mul", rd =4, rs1=10, rs2=11)
     code_blocks.append(code_block)
 
     assert all(block.is_basic_block() for block in code_blocks)
