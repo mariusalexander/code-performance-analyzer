@@ -185,7 +185,7 @@ class PlusTerm(BaseTerm):
         return " + ".join(f"{v.delay}*{get_var_name(v.name)}" for v in self)
 
     def to_str(self):
-        """ 
+        """
         Returns a brief string representation of this term in max-plus notation.
         """
         return "*".join(f"{v.delay}{get_var_name(v.name)}" for v in self)
@@ -221,7 +221,7 @@ class PlusTerm(BaseTerm):
         """
         assert isinstance(variable_name, str), \
                f"Incompatible type '{type(variable_name)}', expected 'str'!"
-        assert all(v.delay > 0 for v in self)
+        assert all(v.delay > 0 or v.name == '' for v in self)
         return sum(v.delay for v in self if v.name == variable_name)
 
     def simplified(self) -> 'PlusTerm':
@@ -456,7 +456,7 @@ class DelayFunction_v2:
         return str(self.static_delay)
 
     def to_str(self):
-        """ 
+        """
         Returns a brief string representation of this function in max-plus notation.
         """
         if len(self.coefficients):
@@ -566,7 +566,7 @@ class DelayFunction_v2:
                 if var.name == var_name:
                     assert new_var.delay >= 0
                     var.name   = new_var.name
-                    var.delay *= max(1, new_var.delay)
+                    var.delay *= new_var.delay
 
         offset = self.coefficients.count(variable_name="")
         if offset is not None:
@@ -724,7 +724,7 @@ class DelayFunctionList_v2:
         return f"max({(',\n' + ' ' * (Print.indent + 4)).join(str(f) for f in self)})"
 
     def to_str(self):
-        """ 
+        """
         Returns a brief string representation of this expression in max-plus notation.
         """
         return f' + '.join(f.to_str() for f in self)

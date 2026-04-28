@@ -17,14 +17,14 @@ class TimingsAnalyzer:
         self.accumulate_stalls  = accumulate_stalls
         self.pipeline           = struct_variant.getPipeline()
         # cache for expected lantecies per scheduling function
-        self.instr2latencies    = {} 
+        self.instr2latencies    = {}
 
-    def analyse_steady_state(self, 
-                             code_block: 'InstructionBlockDescription', 
-                             final_timings:'Timings' = None, 
+    def analyse_steady_state(self,
+                             code_block: 'InstructionBlockDescription',
+                             final_timings:'Timings' = None,
                              timings_history: List['Timings'] = []):
         """
-        Calculates the CPI for the steady state by calculating the expected end cycle 
+        Calculates the CPI for the steady state by calculating the expected end cycle
         and comparing it to the actual end cycle.
         Can also determine which instructions experience a stall cycle.
         """
@@ -56,7 +56,7 @@ class TimingsAnalyzer:
         #       the last instructions plus the number of preceeding instructions
         end_stage          = self.__get_expected_latency(code_block.instructions[-1].name)
         expected_end_cycle = end_stage.value + num_instructions - 1
-        
+
         actual_end_cycle   = final_timings.timing_vars[end_stage.name][0]
         total_stall_cycles = actual_end_cycle - expected_end_cycle
         cpi = (num_instructions + total_stall_cycles) / num_instructions
@@ -65,11 +65,11 @@ class TimingsAnalyzer:
             assert sum(stall_history) == total_stall_cycles, \
                    f"Stall cycles mismatch! ({sum(stall_history)} vs. expected {total_stall_cycles})"
 
-        return dotdict({ 
-            "cpi": cpi, 
-            "total_stall_cycles": total_stall_cycles, 
-            "num_instructions": num_instructions, 
-            "stall_history": stall_history 
+        return dotdict({
+            "cpi": cpi,
+            "total_stall_cycles": total_stall_cycles,
+            "num_instructions": num_instructions,
+            "stall_history": stall_history
         })
 
     def __get_expected_latency(self, instr_name: str):
@@ -98,7 +98,7 @@ class TimingsAnalyzer:
             if edge.isDynamic(): continue
             timing_var = edge.getTimingVariable()
             if timing_var.name != timing_var_name: continue
-            if edge.depth == (timing_var.getNumElements() if is_input else 1): 
+            if edge.depth == (timing_var.getNumElements() if is_input else 1):
                 return True
         return False
 
@@ -114,7 +114,7 @@ class TimingsAnalyzer:
         """
         if next_stages is None:
             next_stages = self.pipeline.getFirstStages()
-        
+
         next_stages = list(stage for stage in next_stages if stage.name in used_stages)
         if not next_stages:
             return dotdict({ "name": input_stage.name, "value": input_cc })
@@ -124,11 +124,11 @@ class TimingsAnalyzer:
         current_cc = None
         if sub_stages := current_stage.getFirstSubStages():
             sub_pipeline_end_cycle = self.__get_expected_end_cycle(
-                used_stages, 
-                sched_function, 
-                next_stages=sub_stages, 
-                input_stage=current_stage, 
-                input_cc=input_cc, 
+                used_stages,
+                sched_function,
+                next_stages=sub_stages,
+                input_stage=current_stage,
+                input_cc=input_cc,
                 instr_name=instr_name
             )
             # expected cc of this stage is the end cycle of the used substages (if any)
@@ -138,7 +138,7 @@ class TimingsAnalyzer:
         if current_cc is None:
             # NOTE: this step is needed as some stages may not have any latencies (dummy stages?)
             # determine mirco operation that uses current timing variable
-            [source_mirco_op] = (node for node in sched_function.getAllNodes() 
+            [source_mirco_op] = (node for node in sched_function.getAllNodes()
                                       if TimingsAnalyzer.__uses_timing_var(node, current_stage.name, is_input=True))
             latency = self.__get_latency_of_stage(source_mirco_op, current_stage.name)
             # resources along the way need more than one cycle -> stage will always cause stalls
@@ -154,11 +154,11 @@ class TimingsAnalyzer:
             return dotdict({ "name": current_stage.name, "value": current_cc })
 
         return self.__get_expected_end_cycle(
-            used_stages, 
-            sched_function, 
-            next_stages=next_stages, 
-            input_stage=current_stage, 
-            input_cc=current_cc, 
+            used_stages,
+            sched_function,
+            next_stages=next_stages,
+            input_stage=current_stage,
+            input_cc=current_cc,
             instr_name=instr_name
         )
 

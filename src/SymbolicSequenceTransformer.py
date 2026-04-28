@@ -12,10 +12,6 @@ from src.TimingsPrinter import TimingsPrinter
 from src.MaxPlusAlgebra import DelayVariable, MaxTerm, DelayFunction, DelayFunctionList_v2
 
 from meta_models.scheduling_model.SchedulingModel import SchedulingModel, Variant as SchedVariant, SchedulingFunction, Node
-from meta_models.structural_model.StructuralModel import StructuralModel, Variant as StructVariant
-
-class SymbolicTimings(Timings):
-    pass
 
 class SymbolicSequenceTimingModel:
 
@@ -66,7 +62,7 @@ class SymbolicSequenceTransformer:
             return function
         raise RuntimeError(f"Scheduling function '{instr_name}' not found!")
 
-    def analyze_all_variants(self, sched_model: 'SchedulingModel', struct_model: 'StructuralModel', code_blocks: List['InstructionBlockDescription']) -> 'SymbolicSequenceTimingModel' :
+    def analyze_all_variants(self, sched_model: 'SchedulingModel', code_blocks: List['InstructionBlockDescription']) -> 'SymbolicSequenceTimingModel' :
         """
         Performs the symbolic sequence analysis for all variants in the schedule model on all code blocks.
         """
@@ -76,12 +72,11 @@ class SymbolicSequenceTransformer:
         with Profile(" > applying symbolic sequence transform to all variants"):
             for sched_variant in sched_model.getAllVariants():
                 print(f" > applying symbolic sequence transform to variant {sched_variant.name}")
-                struct_variant = find_variant(struct_model, sched_variant.name)
                 variant = model.create_variant(sched_variant.name)
-                self.__analyze_variant(variant, sched_variant, struct_variant, code_blocks)
+                self.__analyze_variant(variant, sched_variant, code_blocks)
         return model
 
-    def __analyze_variant(self, variant: 'SymbolicSequenceTimingVariant', sched_variant: 'SchedulingModel', struct_variant: 'StructuralModel', code_blocks: List['InstructionBlockDescription']):
+    def __analyze_variant(self, variant: 'SymbolicSequenceTimingVariant', sched_variant: 'SchedulingModel', code_blocks: List['InstructionBlockDescription']):
         """
         Performs the symbolic sequence analysis on all code blocks for the given schedule model variant.
         """
@@ -89,10 +84,10 @@ class SymbolicSequenceTransformer:
         with Profile("  > applying symbolic sequence transform to all code blocks"):
             for code_block in code_blocks:
                 with Profile(f"   >"):
-                    timings, timings_history = self.__analyze_basic_block(sched_variant, struct_variant, code_block)
+                    timings, timings_history = self.__analyze_basic_block(sched_variant, code_block)
                     variant.add_code_block_timings(code_block=code_block, timings=timings, timings_history=timings_history)
 
-    def __analyze_basic_block(self, sched_variant: 'SchedVariant', struct_variant: 'StructVariant', code_block: 'InstructionBlockDescription') -> 'Timings':
+    def __analyze_basic_block(self, sched_variant: 'SchedVariant', code_block: 'InstructionBlockDescription') -> 'Timings':
         """
         Performs the symbolic sequence analysis on the given code block for the given schedule model variant.
         """
@@ -222,7 +217,7 @@ class SymbolicSequenceTransformer:
         # unmatched delay
         raise RuntimeError(f"Unknown dynamic delay for node '{node.name}'!")
 
-    def __get_input_delays(self, node: 'Node', instr: 'InstructionDescription', timings: 'SymbolicTimings') -> "iterable":
+    def __get_input_delays(self, node: 'Node', instr: 'InstructionDescription', timings: 'Timings') -> "iterable":
         """
         Returns a list of ingoing timings derived from the timing variables, registers, and other connector models.
         """
@@ -240,7 +235,7 @@ class SymbolicSequenceTransformer:
 
         return static_delays
 
-    def __set_output_delays(self, node: 'Node', node_delay: int|float, instr: 'InstructionDescription', output_timings: 'SymbolicTimings'):
+    def __set_output_delays(self, node: 'Node', node_delay: int|float, instr: 'InstructionDescription', output_timings: 'Timings'):
         """
         Updates the outgoing timings of timing variables, registers, and other connector models.
         """

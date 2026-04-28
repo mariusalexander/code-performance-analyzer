@@ -37,15 +37,15 @@ def main():
         variants = model.variants
         model.variants = [var for var in model.variants if fnmatch.fnmatch(var.name, pattern) != invert]
         if not verbose:
-            return
+            return (var for var in variants if var not in model.variants)
         for var in (var for var in variants if var not in model.variants):
             print(f"  > WARNING: filtered out variant '{var.name}'")
         for var in model.variants:
             print(f"  > using variant '{var.name}'")
-    
+
     def valid_path(path):
         return pathlib.Path(path).resolve()
-    
+
     # path to folder
     dirname = pathlib.Path(__file__).resolve().parent / "out"
 
@@ -81,8 +81,9 @@ def main():
     args_parser.add_argument("--suffix"           , nargs=  1, type=str, default=[None], help="...")
 
     args_parser.add_argument("-s", "--sequenced"  , action="store_true", help="Determine CPI of basic blocks by sequentially evaluating the timing model for each instruction.")
-    args_parser.add_argument("--sym-sequened"     , action="store_true", help="Analyze basic blocks ")
-    
+    args_parser.add_argument("--sym-sequened"     , action="store_true", help="")
+    args_parser.add_argument("--xisaac"           , action="store_true", help="")
+
     args = args_parser.parse_args()
 
     if isinstance(args.out_dir, list):
@@ -134,9 +135,11 @@ def main():
             print(" > loading structural model...")
             with Profile("  > unpickling struct model"):
                 struct_model = pickle.load(file)
-    elif args.cpi or not args.resolve_later:
+    elif args.cpi or not args.resolve_later :
         args_parser.error(f"Missing structural model for CPI analysis!")
 
+    if args.xisaac:
+        all_variants = list(v for v in struct_model.getAllVariants())
     # filter out variants
     if args.cores:
         print(" > filtering variants...")
@@ -170,27 +173,113 @@ def main():
         print(" > ERROR: No code blocks to generate schedule models!")
         exit(1)
 
+
+
+
     if args.sym_sequened:
+
+        delay_vectors = {}
+        if args.xisaac:
+            for variant in all_variants:
+                pipeline = variant.getPipeline()
+                mirco_ops = pipeline.getAllMicroactions()
+                resources = (res for op in mirco_ops for res in op.getResources())
+                resources = (res for res in resources for var in args.variable_delays if var in res.name)
+                delay_vectors[variant.name] = { f"V0{r.name[r.name.index('_'):]}": DelayVariable('', r.delay) for r in resources }
+                print(variant.name, '\n', ',\n '.join(f"{name} = {var.delay}" for name, var in delay_vectors[variant.name].items()))
+
         sequence_model = SymbolicSequenceTransformer(verbose=args.verbose,
                                                      symbolic_vars=args.variable_delays,
                                                      default_dynamic_delay=args.dynamic_delays,
                                                      print_history=args.print) \
-            .analyze_all_variants(schedule_model, struct_model, code_blocks)
+            .analyze_all_variants(schedule_model, code_blocks)
+
+        print("\n-- FRONTEND: RESOLVING SYMBOLIC DELAYS --")
+
+        for sequence_variant in sequence_model.variants:
+            resolved_variants = {}
+            final_results = {}
+
+            for variant_name, vector in delay_vectors.items():
+                resolved_variants[variant_name] = {}
+                final_results[variant_name] = {}
+
+                for code_block in code_blocks:
+                    final_timings = sequence_variant.timings[code_block.name]
+                    resolved_variants[variant_name][code_block.name] = final_timings.copy()
+                    resolved_timings = resolved_variants[variant_name][code_block.name]
+
+                    if args.print:
+                        #resolved_timings = resolved_variants[variant_name][code_block.name].timing_vars
+                        for timing_var, history in final_timings.timing_vars.items():
+                            expression = history[0]
+                            if isinstance(expression, int) and expression == -1:
+                                continue
+                            #print(vector)
+                            resolved = expression.copy().replace(vector).evaluate()
+                            #print(variant_name, timing_var, TimingsPrinter.to_str(expression), "->", resolved)
+                            resolved_timings.timing_vars[timing_var][0] = resolved
+
+                        #resolved_timings = resolved_variants[variant_name][code_block.name].register_models
+                        for model, registers in final_timings.register_models.items():
+                            for reg, expression in  registers.items():
+                                if isinstance(expression, int) and expression == -1:
+                                    continue
+                                resolved = expression.copy().replace(vector).evaluate()
+                                #print(variant_name, reg, TimingsPrinter.to_str(expression), "->", resolved)
+                                resolved_timings.register_models[model][reg] = resolved
+
+                        TimingsPrinter.print_history(code_block=code_block, timings_history=[resolved_timings])
+                    else:
+                        resolved_timings.timing_vars["EX_stage"][0] = resolved_timings.timing_vars["EX_stage"][0].copy().replace(vector).evaluate()
+
+                    num_instructions   = len(code_block.instructions)
+                    total_stall_cycles = resolved_timings.timing_vars["EX_stage"][0] - (3 + num_instructions - 1)
+                    cpi = (num_instructions + total_stall_cycles) / num_instructions
+
+                    if args.cpi:
+                        print(f"Variant: {variant_name:>15},\t",
+                            f"Code Block: {code_block.name:>10},",
+                            f"CPI: {cpi:>8.6f},",
+                            f"Instructions: {num_instructions:>3},",
+                            f"Stall cycles: {total_stall_cycles:>3},",
+                            f"Rel. Weight: {f'{code_block.weight:.5f}%' if code_block.weight else "??"}")
+
+                        #print(variant_name, code_block)
+                        final_results[variant_name][code_block.name] = dotdict({
+                            "num_instructions"  : num_instructions,
+                            "stall_cycles"      : total_stall_cycles,
+                            "cpi"               : cpi,
+                            "weight"            : code_block.weight
+                        })
+
+            # print total CPI if possible
+            print()
+            for variant_name in final_results:
+                blocks       = final_results[variant_name]
+                total_weight = sum(bb.weight for bb in blocks.values() if bb.weight is not None)
+                if total_weight == 0:
+                    print_err("WARN: Cannot determine total CPI, missing weights for basic blocks!")
+                    break
+
+                print(f"Variant: {variant_name:>15},\t",
+                    f"total CPI: {sum((bb.cpi * bb.weight / total_weight) for bb in blocks.values()):.6f},\t",
+                    f"total weight: {total_weight * 100:.5f}%")
 
         exit(0)
 
     if args.sequenced:
-        sequence_model = SequenceTransformer(verbose=args.verbose, 
+        sequence_model = SequenceTransformer(verbose=args.verbose,
                                              default_dynamic_delay=args.dynamic_delays,
                                              accumulate_timings=args.print) \
-            .analyze_all_variants(schedule_model, struct_model, code_blocks)
+            .analyze_all_variants(schedule_model, code_blocks)
 
         print("\n-- FRONTEND: DELAY ANALYSIS --")
         final_results = {}
         for sequence_variant in sequence_model.variants:
             assert sequence_variant.name not in final_results, \
                    f"Duplicate result entry for variant '{variant.name}'!"
-            
+
             final_results[sequence_variant.name] = {}
             sched_variant  = find_variant(schedule_model, sequence_variant.name)
             struct_variant = find_variant(struct_model, sequence_variant.name)
@@ -201,8 +290,10 @@ def main():
                 final_timings   = sequence_variant.timings[code_block.name]
                 timings_history = sequence_variant.timings_history[code_block.name]
                 results = analyzer.analyse_steady_state(code_block=code_block, final_timings=final_timings, timings_history=timings_history)
-                
+
                 if args.print_bb:
+                    print()
+                    print(f" > Code block of '{code_block.name}' ({sequence_variant.name}):")
                     print(code_block)
 
                 if args.print:
@@ -212,8 +303,8 @@ def main():
                     print()
 
                 if args.cpi:
-                    print(f"Variant: {sequence_variant.name:>15},\t", 
-                          f"Code Block: {code_block.name:>10},", 
+                    print(f"Variant: {sequence_variant.name:>15},\t",
+                          f"Code Block: {code_block.name:>10},",
                           f"CPI: {results.cpi:>8.6f},",
                           f"Instructions: {results.num_instructions:>3},",
                           f"Stall cycles: {results.total_stall_cycles:>3},",
@@ -232,21 +323,21 @@ def main():
         # export results
         if isinstance(args.cpi, pathlib.Path):
             for variant_name in final_results:
-                result = final_results[variant_name]
+                blocks = final_results[variant_name]
                 with open(args.cpi / f"{variant_name}_{args.suffix + "_" if args.suffix else ""}results.json", "w") as f:
-                    f.write(json.dumps(result, indent=4))
+                    f.write(json.dumps(blocks, indent=4))
 
         # print total CPI if possible
         print()
         for variant_name in final_results:
-            result       = final_results[variant_name]
-            total_weight = sum(bb.weight for bb in result.values() if bb.weight is not None)
+            blocks       = final_results[variant_name]
+            total_weight = sum(bb.weight for bb in blocks.values() if bb.weight is not None)
             if total_weight == 0:
                 print_err("WARN: Cannot determine total CPI, missing weights for basic blocks!")
                 break
 
-            print(f"Variant: {sequence_variant.name:>15},\t",
-                  f"total CPI: {sum((bb.cpi * bb.weight / total_weight) for bb in result.values()):.6f},\t", 
+            print(f"Variant: {variant_name:>15},\t",
+                  f"total CPI: {sum((bb.cpi * bb.weight / total_weight) for bb in blocks.values()):.6f},\t",
                   f"total weight: {total_weight * 100:.5f}%")
 
         exit(0)
@@ -271,7 +362,7 @@ def main():
         for variant in block_schedule.getAllVariants():
             [struct_variant] = tuple(filter(lambda v: v.name == variant.name, struct_model.variants))
             pipeline = PipelineDescription.generate(struct_variant)
-            
+
             idx = 0
             for block_function in variant.getAllSchedulingFunctions():
                 input_vector = InputVectorGenerator(struct_variant, block_function, verbose=args.print_iv or args.verbose) \
@@ -293,12 +384,12 @@ def main():
                 idx += 1
 
     # delay model
-    delay_model = DelayGraphTransformer(verbose=args.verbose, 
+    delay_model = DelayGraphTransformer(verbose=args.verbose,
                                         default_dynamic_delay=args.dynamic_delays) \
         .transform(block_schedule, code_blocks, variable_delays=args.variable_delays)
 
     results = {}
-    # cpi analysis 
+    # cpi analysis
     analyzer = DelayAnalyzer(verbose=args.verbose)
 
     for variant in delay_model.variants:
@@ -350,8 +441,8 @@ def main():
 
             if args.print:
                 analyzer.print({
-                    "original"  : (source_functions if args.resolve_later else None), 
-                    "resolved"  : applied_functions, 
+                    "original"  : (source_functions if args.resolve_later else None),
+                    "resolved"  : applied_functions,
                     "evaluated" : output_vector_1st_iter,
                     "2nd evaluation" : output_vector_2nd_iter
                 })
@@ -361,10 +452,10 @@ def main():
                 cpi, stage = analyzer.estimate_cpi(pipeline, output_vector, num_instructions, offset=input_vector[pipeline.start()].delay)
                 if args.print_bb:
                     print(delay_graph.code_block)
-                print(variant.name.ljust(30), delay_graph.name.ljust(20), 
+                print(variant.name.ljust(30), delay_graph.name.ljust(20),
                       f"CPI: {cpi:>8.6f} ({stage.name:>5}={stage.delay:>3})\t{len(delay_graph.code_block.instructions):>3} instructions,",
                        "rel weight:", (f"{delay_graph.code_block.weight:.5f}%" if delay_graph.code_block.weight is not None else "rel weight: ??"))
-                
+
                 assert delay_graph.name not in results[variant.name], "Duplicate result entry!"
                 results[variant.name][delay_graph.name] = dotdict({
                     "cpi": cpi,
@@ -375,23 +466,23 @@ def main():
                     "input_vector"     : { n:v.delay for n, v in input_vector.items() },
                     "output_vector"    : { v[2:]:d for v, d in output_vector.items() }
                 })
-    
+
     # export results
     if isinstance(args.cpi, pathlib.Path):
         for variant_name in results:
-            result = results[variant_name]
+            blocks = results[variant_name]
             with open(args.cpi / f"{variant_name}_{args.suffix + "_" if args.suffix else ""}results.json", "w") as f:
-                f.write(json.dumps(result, indent=4))
+                f.write(json.dumps(blocks, indent=4))
 
     # print total cpi if possible
     print()
     for variant_name in results:
-        result = results[variant_name]
-        total_weight = sum(bb.weight for bb in result.values() if bb.weight is not None)
+        blocks = results[variant_name]
+        total_weight = sum(bb.weight for bb in blocks.values() if bb.weight is not None)
         if total_weight == 0:
             print("WARNING: Cannot determine total CPI, missing weights for basic blocks!")
             continue
-        print(variant_name.ljust(30), f"total CPI: {sum((bb.cpi * bb.weight / total_weight) for bb in result.values()):.6f} \ttotal weight: {total_weight * 100:.3f}%")
+        print(variant_name.ljust(30), f"total CPI: {sum((bb.cpi * bb.weight / total_weight) for bb in blocks.values()):.6f} \ttotal weight: {total_weight * 100:.3f}%")
 
 if __name__ == "__main__":
     main()
