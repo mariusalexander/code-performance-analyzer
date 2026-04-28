@@ -17,7 +17,7 @@ from src.DelayGraph import DelayGraphTransformer
 from src.DelayGraphViewer import DelayGraphViewer
 from src.DelayAnalyzer import DelayAnalyzer
 from src.InputVectorGenerator import InputVector, InputVectorGenerator, PipelineDescription
-from src.MaxPlusAlgebra import DelayVariable, DelayFunction_v2, DelayFunctionList
+from src.MaxPlusAlgebra import DelayVariable, DelayFunction_v2, DelayFunctionList, DelayFunctionList_v2
 
 from src.SymbolicSequenceTransformer import SymbolicSequenceTransformer
 from src.SequenceTransformer import SequenceTransformer
@@ -197,45 +197,40 @@ def main():
         print("\n-- FRONTEND: RESOLVING SYMBOLIC DELAYS --")
 
         for sequence_variant in sequence_model.variants:
-            resolved_variants = {}
             final_results = {}
 
             with Profile("delay analysis"):
                 for variant_name, vector in delay_vectors.items():
-                    resolved_variants[variant_name] = {}
+                    assert variant_name not in final_results, \
+                        f"Duplicate result entry for variant '{variant_name}'!"
+                        
                     final_results[variant_name] = {}
 
                     for code_block in code_blocks:
-                        final_timings = sequence_variant.timings[code_block.name]
-                        resolved_variants[variant_name][code_block.name] = final_timings.copy()
-                        resolved_timings = resolved_variants[variant_name][code_block.name]
+                        final_timings    = sequence_variant.timings[code_block.name]
+                        resolved_timings = final_timings
 
                         if args.print:
-                            #resolved_timings = resolved_variants[variant_name][code_block.name].timing_vars
+                            resolved_timings = final_timings.copy()
                             for timing_var, history in final_timings.timing_vars.items():
                                 expression = history[0]
                                 if isinstance(expression, int) and expression == -1:
                                     continue
-                                #print(vector)
-                                resolved = expression.copy().replace(vector).evaluate()
-                                #print(variant_name, timing_var, TimingsPrinter.to_str(expression), "->", resolved)
+                                resolved = expression.resolve(vector)
                                 resolved_timings.timing_vars[timing_var][0] = resolved
 
-                            #resolved_timings = resolved_variants[variant_name][code_block.name].register_models
                             for model, registers in final_timings.register_models.items():
                                 for reg, expression in  registers.items():
                                     if isinstance(expression, int) and expression == -1:
                                         continue
-                                    resolved = expression.copy().replace(vector).evaluate()
-                                    #print(variant_name, reg, TimingsPrinter.to_str(expression), "->", resolved)
+                                    resolved = expression.resolve(vector)
                                     resolved_timings.register_models[model][reg] = resolved
 
-                            TimingsPrinter.print_history(code_block=code_block, timings_history=[resolved_timings])
-                        else:
-                            resolved_timings.timing_vars["EX_stage"][0] = resolved_timings.timing_vars["EX_stage"][0].copy().replace(vector).evaluate()
+                        actual_end_value = resolved_timings.timing_vars["EX_stage"][0]
+                        actual_end_value = actual_end_value if not isinstance(actual_end_value, DelayFunctionList_v2) else actual_end_value.resolve(vector)
 
                         num_instructions   = len(code_block.instructions)
-                        total_stall_cycles = resolved_timings.timing_vars["EX_stage"][0] - (3 + num_instructions - 1)
+                        total_stall_cycles = actual_end_value - (3 + num_instructions - 1)
                         cpi = (num_instructions + total_stall_cycles) / num_instructions
 
                         if args.cpi:
@@ -246,7 +241,9 @@ def main():
                                 f"Stall cycles: {total_stall_cycles:>3},",
                                 f"Rel. Weight: {f'{code_block.weight:.5f}%' if code_block.weight else "??"}")
 
-                            #print(variant_name, code_block)
+                            assert code_block.name not in final_results[variant_name], \
+                                f"Duplicate result entry for code block '{code_block.name}'!"
+
                             final_results[variant_name][code_block.name] = dotdict({
                                 "num_instructions"  : num_instructions,
                                 "stall_cycles"      : total_stall_cycles,
@@ -280,7 +277,7 @@ def main():
         with Profile("delay analysis"):
             for sequence_variant in sequence_model.variants:
                 assert sequence_variant.name not in final_results, \
-                    f"Duplicate result entry for variant '{variant.name}'!"
+                    f"Duplicate result entry for variant '{sequence_variant.name}'!"
 
                 final_results[sequence_variant.name] = {}
                 sched_variant  = find_variant(schedule_model, sequence_variant.name)

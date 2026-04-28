@@ -586,6 +586,16 @@ class DelayFunction_v2:
         value  = self.static_delay
         return value + offset
 
+    def resolve(self, variables:Dict[str, 'DelayVariable']) -> Optional[int]:
+        """
+        Attempts to evaluate this function. Must contain no coefficients and only be made up of null delay variables.
+        """
+        result = self.static_delay
+        for coeff in self.coefficients:
+            var     = variables[coeff.name]
+            result += (var.delay * coeff.delay)
+        return result
+
     def min_static_value(self, static_value) -> Optional[int]:
         if len(self.coefficients) == 0:
             return self.static_delay
@@ -787,6 +797,9 @@ class DelayFunctionList_v2:
 
     def evaluate(self) -> Optional[int]:
         return max(f.evaluate() for f in self)
+
+    def resolve(self, variables:Dict[str, 'DelayVariable']) -> Optional[int]:
+        return max(f.resolve(variables) for f in self)
 
     def merge(self, other_function:'DelayFunction_v2') -> Self:
         """
