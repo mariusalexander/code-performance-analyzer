@@ -142,13 +142,22 @@ def main():
         args_parser.error(f"Missing structural model for CPI analysis!")
 
     symbolic_delay_vectors = {}
-    if args.xisaac:
-        for variant in struct_model.getAllVariants():
+    if args.symbolic_analysis:
+        if args.xisaac:
+            for variant in struct_model.getAllVariants():
+                pipeline = variant.getPipeline()
+                mirco_ops = pipeline.getAllMicroactions()
+                resources = (res for op in mirco_ops for res in op.getResources())
+                resources = (res for res in resources for var in symbolic_names if var in res.name)
+                symbolic_delay_vectors[variant.name] = { f"V0{r.name[r.name.index('_'):]}": DelayVariable('', r.delay) for r in resources }
+        else:
+            variant  = struct_model.getAllVariants()[0]
             pipeline = variant.getPipeline()
             mirco_ops = pipeline.getAllMicroactions()
             resources = (res for op in mirco_ops for res in op.getResources())
-            resources = (res for res in resources for var in symbolic_names if var in res.name)
-            symbolic_delay_vectors[variant.name] = { f"V0{r.name[r.name.index('_'):]}": DelayVariable('', r.delay) for r in resources }
+            resources = list(res for res in resources for var in symbolic_names if var in res.name)
+            for delay in [1, 2, 3]:
+                symbolic_delay_vectors[f"{variant.name}_d{delay}"] = { r.name: DelayVariable('', delay) for r in resources }
 
     # filter out variants
     if args.cores:
@@ -189,7 +198,7 @@ def main():
     if args.block_schedule:
 
         block_schedule = BlockSchedulingTransformer(verbose=args.verbose, 
-                                                    rename_edges=False) \
+                                                    rename_edges=args.schedule_graph) \
             .transform(schedule_model, code_blocks, brpred_option=args.brpred)
 
         # render block schedules
@@ -216,15 +225,17 @@ def main():
 
     # sequence timing analysis
     if args.sequence_analysis:
-        final_results = TimingsAnalyzer(print_history=args.print, 
-                                   print_code_blocks=args.print_bb, 
-                                   assume_same_pipeline=args.xisaac) \
+        final_results = TimingsAnalyzer(print_history=args.print,
+                                        print_code_blocks=args.print_bb,
+                                        accumulate_stalls=args.print,
+                                        assume_same_pipeline=args.xisaac) \
             .estimate_cpi(sequence_model, schedule_model, struct_model)
 
     # symbolic timing analysis
     elif args.symbolic_analysis:
-        final_results = TimingsAnalyzer(print_history=False, # not fully supported yet
-                                        print_code_blocks=args.print_bb, 
+        final_results = TimingsAnalyzer(print_history=args.print,
+                                        print_code_blocks=args.print_bb,
+                                        accumulate_stalls=False, # not supported yet
                                         assume_same_pipeline=args.xisaac) \
             .solve_symbolic_delay(sequence_model, schedule_model, struct_model, symbolic_delay_vectors)
 

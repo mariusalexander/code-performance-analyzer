@@ -18,10 +18,12 @@ class TimingsAnalyzer:
     def __init__(self,
                  assume_same_pipeline=False,
                  print_history=False,
+                 accumulate_stalls=False,
                  print_code_blocks=False):
         self.assume_same_pipeline   = assume_same_pipeline
         self.print_history          = print_history
         self.print_code_blocks      = print_code_blocks
+        self.accumulate_stalls      = accumulate_stalls
         # cache for expected lantecies per scheduling function
         self.instr2latencies        = {}
 
@@ -56,7 +58,6 @@ class TimingsAnalyzer:
             [sequence_variant] = sequence_model.variants
         except ValueError:
             raise RuntimeError("Symbolic timing analysis assumes a single base variant!")
-        
         results = {}
         sched_variant  = find_variant(schedule_model, sequence_variant.name)
         struct_variant = find_variant(struct_model, sequence_variant.name)
@@ -121,7 +122,7 @@ class TimingsAnalyzer:
         """
         num_instructions = len(code_block.instructions)
 
-        if self.print_history:
+        if self.accumulate_stalls:
             assert len(timings_history) == len(code_block.instructions), \
                    "Cannot map timings to instructions!"
 
@@ -159,10 +160,9 @@ class TimingsAnalyzer:
             "weight": code_block.weight if code_block.weight else -1
         })
 
-        if self.print_history:
+        if self.accumulate_stalls:
             assert sum(stall_history) == total_stall_cycles, \
                    f"Stall cycles mismatch! ({sum(stall_history)} vs. expected {total_stall_cycles})"
-
             results.stall_history = stall_history
 
         return results
