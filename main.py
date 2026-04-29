@@ -52,9 +52,9 @@ def main():
     args_parser.add_argument("--cores"            , type=str, help="Filters out any core variants that do not match the given Wildcard pattern.")
     args_parser.add_argument("-v", "--verbose"    , action="store_true", help="Enables verbose output.")
     args_parser.add_argument("-p", "--print"      , action="store_true", help="Prints the results.")
-    # TODO
+    # TODO: keep? add more options?
     args_parser.add_argument("-b", "--print-bb"   , action="store_true", help="Prints the code_block.")
-    # TODO
+    # TODO: remove?
     args_parser.add_argument("--brpred"           , nargs=  1, type=str, default=None, help="...")
     # inputs
     args_parser.add_argument("--tests"            , action="store_true", help="Executes all unittests.")
@@ -68,6 +68,7 @@ def main():
                                                     help="Comma separated list of keywords to find nodes whose delay should be made symbolic. " +\
                                                          "Initiates symbolic sequenced timing analysis.")
     args_parser.add_argument("--cpi"              , action="store_true", help="Estimates the CPI for each instruction block. Prints to stdout.")
+    # TODO: generalize?
     args_parser.add_argument("--xisaac"           , action="store_true", help="")
     args_parser.add_argument("--export"           , nargs=  1, type=valid_path, default=[None], help="Exports the results to the given path")
     args_parser.add_argument("--export-suffix"    , nargs=  1, type=str, default=[None], help="Optional suffix for exported results.")

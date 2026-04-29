@@ -271,7 +271,7 @@ class BlockSchedulingTransformer:
                 else:
                     last_valid_node = last_node
                 edge = last_node.createStaticOutEdge(timing_variable)
-                # TODO: we need to properly support depth > 1 for outgoing edges in M2-ISA-R-Perf
+                # TODO: do we need extra support in M2-ISA-R-Perf to support depth > 1 for outgoing edges?
                 edge.depth = idx + 1
                 self._outputs[f"{timing_variable}[{edge.depth}]"] = last_node
 
