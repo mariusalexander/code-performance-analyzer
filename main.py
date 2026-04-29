@@ -119,7 +119,6 @@ def main():
     if args.cpi and not symbolic_names:
         args.sequence_analysis = True
 
-    # TODO
     if args.brpred:
         [args.brpred] = args.brpred
         match args.brpred:
