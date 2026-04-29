@@ -1,4 +1,3 @@
-import copy
 from typing import List, Self
 from objprint import op
 
@@ -95,42 +94,6 @@ def MaxFunction_is_covered_by():
 
     assert function2.is_covered_by(function1), f"{function2} should be covered by {function1}"
 
-def MaxFunction_merge():
-    static = DelayFunction()
-    static.append_static_var(DelayVariable("X", 3))
-    static.append_static_var(DelayVariable("Y", 2))
-    static.append_static_var(DelayVariable("Z", 3))
-    static.append_static_var(DelayVariable("U", 0))
-    static_orig = copy.deepcopy(static)
-
-    dynamic = DelayFunction()
-    dynamic.append_static_var(DelayVariable("X", 2))
-    dynamic.append_static_var(DelayVariable("Y", 1))
-    dynamic.append_static_var(DelayVariable("Z", 1))
-    dynamic.append_coefficient(DelayVariable("d1"))
-    dynamic_orig = copy.deepcopy(dynamic)
-
-    # 1. merging function with empty list should add function to list
-    functions = DelayFunctionList()
-    functions.merge(static)
-
-    reference = DelayFunctionList((static, ))
-    assert functions == reference, f"DelayFunctionList().merge({static}) should equal {reference}"
-
-    # 2. merging dyanmic function with static function should remove redundant terms from static function
-    reference = DelayFunction()
-    reference.append_static_var(DelayVariable("Z", 3))
-    reference.append_static_var(DelayVariable("U", 0))
-    reference = DelayFunctionList((reference, dynamic))
-
-    assert functions.merge(dynamic) == reference, f"DelayFunctionList([{static}]).merge({dynamic}) should equal {reference}"
-
-    # 3. merging should create deep copies of the input function
-    assert static == static_orig, f"DelayFunctionList().merge() should not alter input function!"
-    assert dynamic == dynamic_orig, f"DelayFunctionList().merge() should not alter input function!"
-
-
-
 def MaxFunction_merge_v2():
     Print.indent = 0
 
@@ -188,7 +151,7 @@ def MaxFunction_resolved():
 
 def tests():
     print("  > Testing 'MaxTerm':")
-    # deactivated: MaxFunction_is_covered_by, MaxFunction_merge
+    # deactivated: MaxFunction_is_covered_by
     for test_function in MaxTerm_max_delay, MaxTerm_plus, MaxTerm_names, \
                          MaxFunction_plus, MaxFunction_merge_v2, MaxFunction_resolved:
         print(f"   > executing {test_function.__name__}...")

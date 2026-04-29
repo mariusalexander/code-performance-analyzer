@@ -11,20 +11,32 @@ class Timings:
     # NOTE: corePerfDsl models that should be interpreted like register models have to be added here!
     __known_register_models = ["regModel", "clobberModel"]
 
-    def __init__(self, sched_variant: 'SchedVariant'):
+    __slots__ = ["timing_vars", "register_models", "connector_models"] 
+
+    def __init__(self, sched_variant: 'SchedVariant' = None):
         # NOTE: assuming all pipeline stages are available (here -1 to indicates unset timing variables)
         # each timing variable has a "history" (depth of edges/stage's capacity)
-        self.timing_vars      = { timing_var.name : [ -1 for _ in range(0, timing_var.getNumElements()) ] for timing_var in sched_variant.getAllTimingVariables() }
+        self.timing_vars      = { timing_var.name : [ -1 for _ in range(0, timing_var.getNumElements()) ] for timing_var in sched_variant.getAllTimingVariables() } if sched_variant else {}
         # register models
-        self.register_models  = { model.name : {} for model in sched_variant.getAllConnectorModels() if model.name in Timings.__known_register_models }
+        self.register_models  = { model.name : {} for model in sched_variant.getAllConnectorModels() if model.name in Timings.__known_register_models } if sched_variant else {}
         # other connector models that are ignored (e.g. branch prediction)
-        self.connector_models = { model.name : {} for model in sched_variant.getAllConnectorModels() if model.name not in Timings.__known_register_models }
+        self.connector_models = { model.name : {} for model in sched_variant.getAllConnectorModels() if model.name not in Timings.__known_register_models } if sched_variant else {}
     
     def copy(self):
         """ 
-        Creates a deep copy of the current timings. 
+        Creates a copy of the current timings.
         """
-        return copy.deepcopy(self)
+        cpy = Timings()
+        cpy.assign_to(self)
+        return cpy
+
+    def assign_to(self, other):
+        """ 
+        Assigns the values of `other` to this object.
+        """
+        self.timing_vars      = { name: [ value for value in history ] for name, history in other.timing_vars.items() }
+        self.register_models  = { name: { reg : value for reg, value in registers.items() } for name, registers in other.register_models.items() }
+        self.connector_models = { name: { con : value for con, value in connectors.items() } for name, connectors in other.connector_models.items() }
 
     def get_timing_var(self, timing_var: 'TimingVariable', depth: int):
         """

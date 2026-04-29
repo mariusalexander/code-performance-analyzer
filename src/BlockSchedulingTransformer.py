@@ -9,6 +9,7 @@ from meta_models.scheduling_model.SchedulingModel import SchedulingModel, Varian
 from src.Common import dotdict, Profile, twos_complement
 from src.InstructionBlockDescription import InstructionBlockDescription
 
+# TODO: refactor or remove?
 
 class BlockSchedulingModel(SchedulingModel):
 
@@ -54,11 +55,11 @@ class BlockSchedulingFunction(SchedulingFunction):
 class BlockSchedulingTransformer:
     """ Block Scheduling Transformer """
 
-    def __init__(self, verbose=True):
+    def __init__(self, verbose=True, rename_edges=False):
         self._id = 1024
         self.verbose = verbose
         # whether to use more descriptive names for edges to registers, like 'r2 (Xa)' instead of 'Xa'
-        self.rename_edges  = True
+        self.rename_edges  = rename_edges
         self.brpred_option = ""
         # TODO: infer these attributes dynamically from core perf dsl or the struct model
         self._register_models = ["regModel", "clobberModel"]

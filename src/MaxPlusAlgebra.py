@@ -1,9 +1,10 @@
 import math
+import atexit
 from objprint import op, objstr
 from itertools import chain
 from typing import List, Dict, Optional, Self
 
-from src.Common import Print, print_err
+from src.Common import Print
 
 do_print=False #True
 do_print_detail=False
@@ -17,9 +18,20 @@ def get_var_name(name):
     variable_name = chr(ord('A') + len(symbolic_variable_names))
     symbolic_variable_names[name] = variable_name
     return variable_name
+    
+def _print_symbolic_abbreviations():
+    """ Prints the symbolic variables names at exit. """
+    if symbolic_variable_names:
+        print(f"with symbolic variables:")
+        for name, abbr in symbolic_variable_names.items():
+            print(f" - {abbr} = {name}")
+atexit.register(_print_symbolic_abbreviations)
+
 
 class DelayVariable:
     """ Represents a variable in a max term, associated with an added delay. """
+
+    __slots__ = ["name", "delay"] # memory optimization
 
     def __init__(self, name:str, delay:int=0):
         self.name  = name
@@ -46,6 +58,8 @@ class DelayVariable:
 
 class BaseTerm:
     """ Represents a abstract term, a list of variables. How these variables relate must be defined in the derived classes. """
+
+    __slots__ = ["variables"] # memory optimization
 
     def __init__(self, iterable_or_arg=None):
         self.variables:List['DelayVariable'] = []
@@ -445,6 +459,8 @@ class DelayFunction:
 
 class DelayFunction_v2:
 
+    __slots__ = ["static_delay", "coefficients"]
+
     def __init__(self):
         self.static_delay = 0
         # denoting outer term: max(...) + 3d + 2e + 1f
@@ -723,6 +739,8 @@ class DelayFunctionList(list):
         return self
 
 class DelayFunctionList_v2:
+
+    __slots__ = ["instances"] # memory optimization
 
     def __init__(self, iterable=[]):
         self.instances = {}

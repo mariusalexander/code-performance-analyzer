@@ -11,10 +11,11 @@ _ignored_registers_ = set()
 class InstructionDescription(dotdict):
     """ Denotes a single instruction. """
 
-    def __init__(self, address:int, instr_name:str, rd:int=None, rs1:int=None, rs2:int=None, imm:int=None):
+    def __init__(self, address:int, instr_name:str, instr_idx: int, rd:int=None, rs1:int=None, rs2:int=None, imm:int=None):
         super().__init__()
         self.address = address
         self.name    = instr_name
+        self.idx     = instr_idx
         self.rd      = rd
         self.rs1     = rs1
         self.rs2     = rs2
@@ -72,22 +73,23 @@ class InstructionBlockDescription:
 
     def __str__(self) -> str:
         header   = f"code block '{self.name}' (0x{self.starting_address:08x}), {len(self.instructions)} instructions, {f"{self.weight * 100:2.2f}% weight" if self.weight else ""}:"
-        instrs   = "\n ".join(f"{" " * Print.indent}{idx:>3}. {instr}" for idx, instr in enumerate(self.instructions))
-        dyn_vars = "\n ".join(f"{" " * Print.indent}  {name}: {value:.4f}" for name,value in self.dynamic_vars.items())
+        instrs   = "\n ".join(f"{" " * Print.indent}  {instr.idx:>3}. {instr}" for instr in self.instructions)
+        dyn_vars = "\n ".join(f"{" " * Print.indent}    {name}: {value:.4f}" for name,value in self.dynamic_vars.items())
         return f"{header}\n {instrs}" + (f"\n {" " * Print.indent}with:\n {dyn_vars}" if self.dynamic_vars else "")
 
     def __repr__(self) -> str:
         return self.__str__()
 
-    def addInstruction(self, instr_name, rd=None, rs1=None, rs2=None, imm=None, address=None, **kwargs):
+    def addInstruction(self, instr_name, rd=None, rs1=None, rs2=None, imm=None, address=None, **kwargs) -> 'self':
         if address is None:
             address = self.starting_address + (4 * len(self.instructions))
-        instr = InstructionDescription(address, instr_name, rd=rd, rs1=rs1, rs2=rs2, imm=imm)
+        instr = InstructionDescription(address, instr_name, instr_idx=len(self.instructions), rd=rd, rs1=rs1, rs2=rs2, imm=imm)
         for register in (arg for arg in kwargs if arg not in _ignored_registers_):
             print(f"{" " * Print.indent}> WARNING: ignoring all occurrences of register '{register}' " + \
                   f"(instr: {instr_name}, idx: {len(self.instructions)})")
             _ignored_registers_.add(register)
         self.instructions.append(instr)
+        return self
 
     def target_registers(self):
         return sorted(set(instr.rd for instr in self.instructions if instr.rd is not None))
@@ -111,7 +113,8 @@ class InstructionBlockDescription:
                 if len(desc.instructions) == 0 and address_start == 0:
                     desc.starting_address = address
             elif not printed:
-                print(f"{" " * Print.indent}> WARNING: cannot determine address of instruction (instr. idx = {len(desc.instructions)})")
+                print(f"{" " * Print.indent}> WARNING:",
+                      f"cannot determine address of instruction (instr. idx = {len(desc.instructions)})")
                 printed = True
             instr_name = re.search(r"(^|\s)([a-z][a-z0-9]*?)+\s", raw_instruction).group().strip()
             registers  = re.findall(r"([a-z][a-z0-9]+)=(\d+)", raw_instruction)
@@ -120,11 +123,22 @@ class InstructionBlockDescription:
         return desc
 
     @staticmethod
-    def load_from_files(files:List['pathlib.Path'], ignore_variants=False, verbose=True):
+    def load_from_files(files:List['pathlib.Path'], verbose=True):
         code_blocks = []
         weights = {}
         variants = {}
         print(" > loading from files...")
+
+        # helper
+        def append_code_block(code_block):
+            assert(code_block.is_valid_code_block()), "code block contains invalid instructions!"
+            if not code_block.is_basic_block():
+                instructions = (instr for instr in code_block.instructions[:-1] if instr.is_branch())
+                print(f"{" " * Print.indent}> WARNING: code block is not a basic block: " + \
+                       ", ".join(f'instr. {instr.idx}.' for instr in instructions))
+            code_blocks.append(code_block)
+            if verbose:
+                print("   >", code_block, "(variant)" if code_block.dynamic_vars else "")
 
         # read metadata
         if len(files) == 1 and files[0].name.endswith(".json"):
@@ -135,8 +149,7 @@ class InstructionBlockDescription:
             bbs = list(data)
             files   = [ path / bb["name"] for bb in bbs ]
             weights = { bb["name"] : bb["weight"] for bb in bbs }
-            if not ignore_variants:
-                variants = { bb["name"] : bb["dynamic_delays"] for bb in bbs if "dynamic_delays" in bb}
+            variants = { bb["name"] : bb["dynamic_delays"] for bb in bbs if "dynamic_delays" in bb}
             assert all(0 <= w <= 1 for w in weights.values())
 
         # parse files
@@ -149,24 +162,17 @@ class InstructionBlockDescription:
                 address_start = 0
             with open(file, "r") as f:
                 raw_instructions = f.readlines()
-                desc = InstructionBlockDescription.parse_stringlist(raw_instructions, name=file.stem, address_start=address_start)
+                code_block = InstructionBlockDescription.parse_stringlist(raw_instructions, name=file.stem, address_start=address_start)
                 if file.name in weights:
-                    desc.weight = weights[file.name]
+                    code_block.weight = weights[file.name]
                 if file.name in variants:
                     for idx, variant in enumerate(variants[file.name]):
-                        code_block_variant = copy.deepcopy(desc)
+                        code_block_variant = copy.deepcopy(code_block)
                         code_block_variant.name        += f"_v{idx}" if len(variants[file.name]) > 1 else ""
                         code_block_variant.weight      *= variant["weight"]
                         code_block_variant.dynamic_vars = variant["variables"]
-                        if verbose:
-                            print("   >", code_block_variant, "(variant)")
                         assert code_block_variant.weight > 0
-                        assert(desc.is_valid_code_block()), f"{desc}"
-                        code_blocks.append(code_block_variant)
-                    continue
-
-                if verbose:
-                    print("   >", desc)
-                assert(desc.is_valid_code_block()), f"{desc}"
-                code_blocks.append(desc)
+                        append_code_block(code_block)
+                else:
+                    append_code_block(code_block)
         return code_blocks

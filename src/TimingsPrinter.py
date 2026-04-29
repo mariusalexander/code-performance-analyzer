@@ -2,11 +2,17 @@ from typing import List
 
 from src.Timings import Timings
 from src.InstructionBlockDescription import InstructionDescription
-from src.MaxPlusAlgebra import DelayFunctionList_v2, symbolic_variable_names
+from src.MaxPlusAlgebra import DelayFunctionList_v2
 
 
 class TimingsPrinter:
-    """ Helper class to pretty-print the timings during the analysis. """
+    """ 
+    Helper class to pretty-print the timings during the analysis. 
+
+    NOTE: 
+    - By setting `h_line` to `None`, and `s_spacer` = `w_spacer` = `,` a CSV-compatible table can be printed. 
+    - By setting `fprint` to an IO-device, the table can be printed to the disk directly.
+    """
     
     @staticmethod
     def is_valid(v):
@@ -70,6 +76,7 @@ class TimingsPrinter:
                       stall_history: List[int] = [],
                       s_spacer='|', w_spacer='||', h_line='-',
                       fprint=print):
+        """ Static method. Can be used to print the timings for a code block timings in one go. """
 
         if len(timings_history) == 0:
             return
@@ -94,12 +101,6 @@ class TimingsPrinter:
         for instr_idx, [timing, instr] in enumerate(zip(timings_history, code_block.instructions)):
             stall_cycles = stall_history[instr_idx] if stall_history else 0
             table.print_row(timings=timing, instr_name=instr.name, instr_idx=instr_idx, stall_cycles=stall_cycles)
-
-        # print symbolic variable abbreviations
-        if symbolic_variable_names:
-            print(f"with:")
-            for name, abbr in symbolic_variable_names.items():
-                print(f"{abbr.rjust(5)} = {name}")
 
     def print_header(self):
         # omit indicies for the history of a timing variable if its capacity is one
