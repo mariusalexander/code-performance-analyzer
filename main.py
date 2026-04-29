@@ -223,7 +223,7 @@ def main():
 
     # symbolic timing analysis
     elif args.symbolic_analysis:
-        final_results = TimingsAnalyzer(print_history=args.print, 
+        final_results = TimingsAnalyzer(print_history=False, # not fully supported yet
                                         print_code_blocks=args.print_bb, 
                                         assume_same_pipeline=args.xisaac) \
             .solve_symbolic_delay(sequence_model, schedule_model, struct_model, symbolic_delay_vectors)

@@ -133,6 +133,7 @@ class TimingsAnalyzer:
 
                 current_timings    = timings_history[instr_idx].timing_vars
                 current_end_cycle  = current_timings[end_stage.name][0]
+
                 diff = current_end_cycle - expected_end_cycle - sum(stall_history)
                 assert diff >= 0, f"Expected {instr_idx}. instr. ('{instr.name}') to finish at CC {expected_end_cycle + sum(stall_history)} " + \
                                   f"but finished earlier at CC {current_end_cycle}! (diff: {diff} CC) " + \
