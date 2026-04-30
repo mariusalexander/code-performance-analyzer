@@ -2,7 +2,7 @@ from typing import List, Self
 from objprint import op
 
 from src.Common import PrintDisabled, Print
-from src.MaxPlusAlgebra import DelayVariable, MaxTerm, DelayFunction, DelayFunctionList, DelayFunction_v2, DelayFunctionList_v2
+from src.MaxPlusAlgebra import DelayVariable, MaxTerm, DelayFunction, DelayExpression
 
 def test_term_simple():
     term = MaxTerm()
@@ -42,118 +42,52 @@ def MaxTerm_names():
     for factory, reference in test_vectors():
         term = factory()
         reference = list(reference.keys())
-        assert term.names() == reference, f"names: {term.names()} != {reference}"
+        assert list(term.names()) == reference, f"names: {list(term.names())} != {reference}"
 
-def MaxFunction_plus():
-    reference = {"a":3, "b":2, "c":1}
-
-    function = DelayFunction()
-    function.append_static_var(DelayVariable("a", 3))
-    function.append_static_var(DelayVariable("b", 2))
-    function.append_static_var(DelayVariable("c", 1))
-    function.plus(1)
-    assert all(function.max_delay(v.name) == (reference[v.name] + 1) for v in function.iter_static_vars()), f"function {function} should equal {reference} + 1"
-
-    function.append_coefficient(DelayVariable("d1", 1))
-    function.plus(1)
-    assert all(function.max_delay(v.name) == (reference[v.name] + 2) for v in function.iter_static_vars()), f"function {function} should equal {reference} + 1"
-
-    function.append_coefficient(DelayVariable("d2", 2))
-    function.plus(1)
-    assert all(function.max_delay(v.name) == (reference[v.name] + 3) for v in function.iter_static_vars()), f"function {function} should equal {reference} + 1"
-
-
-def MaxFunction_is_covered_by():
-    # 1.
-    function1 = DelayFunction()
-    function1.append_static_var(DelayVariable("if", 2))
-    function1.append_static_var(DelayVariable("pc", 2))
-    function1.append_static_var(DelayVariable("id", 1))
-    function1.append_coefficient(DelayVariable("d1", 1))
-    function1.append_coefficient(DelayVariable("d2", 2))
-    function1.append_coefficient(DelayVariable("d3", 1))
-
-    function2 = DelayFunction()
-    function2.append_static_var(DelayVariable("if", 2))
-    function2.append_static_var(DelayVariable("pc", 1))
-    function2.append_static_var(DelayVariable("id", 1))
-    function2.append_coefficient(DelayVariable("d1", 2))
-    function2.append_coefficient(DelayVariable("d2", 1))
-
-    assert function2.is_covered_by(function1), f"{function2} should be covered by {function1}"
-
-    # 2.
-    function1 = DelayFunction()
-    function1.append_static_var(DelayVariable("if", 2))
-    function1.append_coefficient(DelayVariable("d1", 2))
-    function1.append_coefficient(DelayVariable("d2", 1))
-
-    function2 = DelayFunction()
-    function2.append_static_var(DelayVariable("if", 4))
-    function2.append_coefficient(DelayVariable("d1", 1))
-
-    assert function2.is_covered_by(function1), f"{function2} should be covered by {function1}"
-
-def MaxFunction_merge_v2():
+def MaxFunction_merge():
     Print.indent = 0
 
-    f1 = DelayFunction_v2()
-    f1.append_static_var(DelayVariable("", 5))
+    f1 = DelayFunction()
+    f1.merge_delay(5)
 
-    f2 = DelayFunction_v2()
-    f2.append_static_var(DelayVariable("", 2))
-    f2.append_coefficient(DelayVariable("d1", 1))
+    f2 = DelayFunction()
+    f2.merge_delay(2)
+    f2.add_coefficient(DelayVariable("d1", 1))
 
-    funcs = DelayFunctionList_v2()
+    funcs = DelayExpression()
     funcs.merge(f1)
     funcs.merge(f2)
     funcs.merge(f2)
 
-    f3 = DelayFunction_v2()
-    f3.append_static_var(DelayVariable("", 1))
-    f3.append_coefficient(DelayVariable("d1", 1))
+    f3 = DelayFunction()
+    f3.merge_delay(1)
+    f3.add_coefficient(DelayVariable("d1", 1))
     funcs.merge(f3)
 
-    f4 = DelayFunction_v2()
-    f4.append_static_var(DelayVariable("", 4))
-    f4.append_coefficient(DelayVariable("d2", 1))
+    f4 = DelayFunction()
+    f4.merge_delay(4)
+    f4.add_coefficient(DelayVariable("d2", 1))
     funcs.merge(f4)
 
-    f5 = DelayFunction_v2()
-    f5.append_static_var(DelayVariable("", 5))
-    f5.append_coefficient(DelayVariable("d1", 1))
-    f5.append_coefficient(DelayVariable("d2", 2))
+    f5 = DelayFunction()
+    f5.merge_delay(5)
+    f5.add_coefficient(DelayVariable("d1", 1))
+    f5.add_coefficient(DelayVariable("d2", 2))
     funcs.merge(f5)
 
-    f6 = DelayFunction_v2()
-    f6.append_static_var(DelayVariable("", 7))
+    f6 = DelayFunction()
+    f6.merge_delay(7)
     funcs.merge(f6)
 
-    print(funcs)
-    funcs.replace({"d1":DelayVariable("", 0)})
-    print(funcs)
-    funcs.replace({"d2":DelayVariable("", 0)})
-    print(funcs)
-    print(funcs.evaluate())
-
-
-
-def MaxFunction_resolved():
-    function = DelayFunction()
-    function.append_static_var(DelayVariable("X", 3))
-    function.append_static_var(DelayVariable("Y", 3))
-    function = function.replace({"X":DelayVariable("", 1)})
-    assert function.max_delay("Y") == 3, f"{function.max_delay("Y")} != 3"
-
-    function.append_coefficient(DelayVariable("X", 2))
-    function = function.replace({"X":DelayVariable("", 1)})
-    assert function.max_delay("Y") == 5, f"{function.max_delay("Y")} != 5"
+    assert funcs.resolve({ "d1": 0, "d2": 0 }) == 7
+    assert funcs.resolve({ "d1": 1, "d2": 0 }) == 7
+    assert funcs.resolve({ "d1": 1, "d2": 1 }) == 8
+    assert funcs.resolve({ "d1": 2, "d2": 3 }) == 13
 
 def tests():
     print("  > Testing 'MaxTerm':")
-    # deactivated: MaxFunction_is_covered_by
     for test_function in MaxTerm_max_delay, MaxTerm_plus, MaxTerm_names, \
-                         MaxFunction_plus, MaxFunction_merge_v2, MaxFunction_resolved:
+                         MaxFunction_merge:
         print(f"   > executing {test_function.__name__}...")
         test_function()
     print("   > success!")

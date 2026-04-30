@@ -8,7 +8,7 @@ from src.Common import dotdict, Profile, Print
 from src.InstructionBlockDescription import InstructionBlockDescription, InstructionDescription
 from src.Timings import Timings
 from src.TimingsPrinter import TimingsPrinter
-from src.MaxPlusAlgebra import DelayVariable, PlusTerm, DelayFunction_v2, DelayFunctionList_v2
+from src.MaxPlusAlgebra import DelayVariable, PlusTerm, DelayFunction, DelayExpression
 
 from meta_models.scheduling_model.SchedulingModel import SchedulingModel, Variant as SchedVariant, SchedulingFunction, Node
 
@@ -229,18 +229,18 @@ class SequenceTransformer:
                                          in_node_delays,
                                          in_connector_delays,
                                          dynamic_delay):
-        functions = DelayFunctionList_v2()
+        functions = DelayExpression()
         # delays of all ingoing nodes
         for node_in in in_node_delays:
             for other_function in node_in:
                 functions.merge(other_function)
 
         for connector_in in in_connector_delays:
-            if isinstance(connector_in, DelayFunctionList_v2):
+            if isinstance(connector_in, DelayExpression):
                 for other_function in connector_in:
                     functions.merge(other_function)
             else:
-                functions.append_static_var(DelayVariable('', connector_in))
+                functions.merge_delay(connector_in)
 
         if dynamic_delay > 0:
             functions.plus(dynamic_delay)
@@ -249,7 +249,7 @@ class SequenceTransformer:
         # NOTE: adapt logic once corePerfDsl support symbolic delays
         is_symbolic = any(name in node.name and "stage" not in node.name for name in self.symbolic_vars)
         if is_symbolic:
-            functions.append_coefficient(DelayVariable(node.name, 1))
+            functions.add_coefficient(DelayVariable(node.name, 1))
         elif node.getDelay() > 0:
             functions.plus(node.getDelay())
 

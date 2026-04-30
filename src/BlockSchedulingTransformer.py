@@ -1,7 +1,7 @@
 
 import copy
 from collections import deque
-from typing import List, Dict
+from typing import List
 from itertools import chain
 
 from meta_models.scheduling_model.SchedulingModel import SchedulingModel, Variant, SchedulingFunction, Node, StaticEdge

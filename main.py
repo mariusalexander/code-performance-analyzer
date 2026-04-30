@@ -5,14 +5,12 @@ import argparse
 import fnmatch
 import pickle
 import json
-from objprint import op
 
 from backends.schedule_viewer.SchedulingModelViewer import SchedulingModelViewer
 
 from src.Common import Profile, Print
 from src.InstructionBlockDescription import InstructionBlockDescription
 from src.BlockSchedulingTransformer import BlockSchedulingTransformer
-from src.MaxPlusAlgebra import DelayVariable
 
 from src.SequenceTransformer import SequenceTransformer
 from src.TimingsAnalyzer import TimingsAnalyzer
@@ -149,7 +147,7 @@ def main():
                 mirco_ops = pipeline.getAllMicroactions()
                 resources = (res for op in mirco_ops for res in op.getResources())
                 resources = (res for res in resources for var in symbolic_names if var in res.name)
-                symbolic_delay_vectors[variant.name] = { f"V0{r.name[r.name.index('_'):]}": DelayVariable('', r.delay) for r in resources }
+                symbolic_delay_vectors[variant.name] = { f"V0{r.name[r.name.index('_'):]}": r.delay for r in resources }
         else:
             variant  = struct_model.getAllVariants()[0]
             pipeline = variant.getPipeline()
@@ -157,7 +155,7 @@ def main():
             resources = (res for op in mirco_ops for res in op.getResources())
             resources = list(res for res in resources for var in symbolic_names if var in res.name)
             for delay in [1, 2, 3]:
-                symbolic_delay_vectors[f"{variant.name}_d{delay}"] = { r.name: DelayVariable('', delay) for r in resources }
+                symbolic_delay_vectors[f"{variant.name}_d{delay}"] = { r.name: delay for r in resources }
 
     # filter out variants
     if args.cores:

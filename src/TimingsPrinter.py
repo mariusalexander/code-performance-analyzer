@@ -2,7 +2,7 @@ from typing import List
 
 from src.Timings import Timings
 from src.InstructionBlockDescription import InstructionDescription
-from src.MaxPlusAlgebra import DelayFunctionList_v2
+from src.MaxPlusAlgebra import DelayExpression
 
 
 class TimingsPrinter:
@@ -16,11 +16,11 @@ class TimingsPrinter:
     
     @staticmethod
     def is_valid(v):
-        return v >= 0 if not isinstance(v, DelayFunctionList_v2) else len(v) > 0
+        return v >= 0 if not isinstance(v, DelayExpression) else len(v) > 0
 
     @staticmethod
     def to_str(v):
-        return str(v) if not isinstance(v, DelayFunctionList_v2) else v.to_str()
+        return str(v) if not isinstance(v, DelayExpression) else v.to_str()
 
     @staticmethod
     def count_digits(iterable):

@@ -8,7 +8,7 @@ from src.InstructionBlockDescription import InstructionBlockDescription
 from src.Timings import Timings
 from src.TimingsPrinter import TimingsPrinter
 from src.SequenceTransformer import SequenceTransformer, SequenceTimingModel, SequenceTimingVariant
-from src.MaxPlusAlgebra import DelayFunctionList_v2
+from src.MaxPlusAlgebra import DelayExpression
 
 from meta_models.scheduling_model.SchedulingModel import Variant as SchedulingModel, Variant as SchedVariant, SchedulingFunction, Node
 from meta_models.structural_model.StructuralModel import Variant as StructuralModel, Variant as StructVariant, Stage
@@ -52,7 +52,7 @@ class TimingsAnalyzer:
                              sequence_model: SequenceTimingModel,
                              schedule_model: SchedulingModel, 
                              struct_model: StructuralModel,
-                             symbolic_delay_vectors):
+                             symbolic_delay_vectors: Dict[str, Dict[str, int|float]]):
         print("\n-- FRONTEND: SYMBOLIC TIMING ANALYSIS --")
         try:
             [sequence_variant] = sequence_model.variants
@@ -147,7 +147,7 @@ class TimingsAnalyzer:
         expected_end_cycle = end_stage.value + num_instructions - 1
 
         actual_end_cycle   = final_timings.timing_vars[end_stage.name][0]
-        if isinstance(actual_end_cycle, DelayFunctionList_v2):
+        if isinstance(actual_end_cycle, DelayExpression):
             actual_end_cycle = actual_end_cycle.resolve(self.input_vector)
             
         total_stall_cycles = actual_end_cycle - expected_end_cycle
