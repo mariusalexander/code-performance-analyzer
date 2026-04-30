@@ -487,6 +487,8 @@ class DelayExpression:
                         print("discarding theirs - idx", instance, f"({value})" "\n")
                     return
                 # if covered_by_them:
+                #     if do_print_detail:
+                #         print("discarding ours   - idx", instance, f"({value})" "\n")
                 #     function.assign_to(other_function)
                 #     merged = True
                 #     merged_at.add(instance)
@@ -501,13 +503,13 @@ class DelayExpression:
             their_min_value = other_function.min_static_value(instance)
             factor          = other_function.min_static_value(instance+1) - their_min_value
             new_instance    = math.ceil((this_min_value - their_min_value + 1) / factor)
-            their_min_value = other_function.min_static_value(new_instance)
             if do_print_detail:
-                print(f"{new_instance:>2} ->", their_min_value, "appended (1)\n")
+                their_min_value = other_function.min_static_value(new_instance)
+                print(f"{new_instance:>2} ->", their_min_value, "appended (1)\n", "HERE", factor)
         else:
             new_instance    = instance
-            their_min_value = other_function.min_static_value(new_instance)
             if do_print_detail:
+                their_min_value = other_function.min_static_value(new_instance)
                 print(f"{new_instance:>2} ->", their_min_value, "appended (2)\n")
 
         assert new_instance >= 0

@@ -208,7 +208,7 @@ def main():
     if not args.sequence_analysis and not args.symbolic_analysis:
         print(" > WARNING: nothing to do!")
         exit(0)
-    
+
     sequence_model = SequenceTransformer(verbose=args.verbose,
                                          symbolic_vars=symbolic_names,
                                          default_dynamic_delay=args.default_dynamic_delay,

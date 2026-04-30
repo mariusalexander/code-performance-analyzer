@@ -242,16 +242,16 @@ class SequenceTransformer:
             else:
                 functions.merge_delay(connector_in)
 
-        if dynamic_delay > 0:
-            functions.plus(dynamic_delay)
-
         # symbolic 
         # NOTE: adapt logic once corePerfDsl support symbolic delays
         is_symbolic = any(name in node.name and "stage" not in node.name for name in self.symbolic_vars)
         if is_symbolic:
             functions.add_coefficient(DelayVariable(node.name, 1))
-        elif node.getDelay() > 0:
-            functions.plus(node.getDelay())
+        else:
+            if node.getDelay() > 0:
+                functions.plus(node.getDelay())
+            if dynamic_delay > 0:
+                functions.plus(dynamic_delay)
 
         if self.verbose:
             with Print.indent_scope(31):
