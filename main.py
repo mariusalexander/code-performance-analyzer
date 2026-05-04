@@ -8,7 +8,7 @@ import json
 
 from backends.schedule_viewer.SchedulingModelViewer import SchedulingModelViewer
 
-from src.Common import Profile, Print
+from src.Common import Profile, Print, dotdict
 from src.InstructionBlockDescription import InstructionBlockDescription
 from src.BlockSchedulingTransformer import BlockSchedulingTransformer
 
@@ -54,6 +54,7 @@ def main():
     args_parser.add_argument("-b", "--print-bb"   , action="store_true", help="Prints the code_block.")
     # TODO: remove?
     args_parser.add_argument("--brpred"           , nargs=  1, type=str, default=None, help="...")
+    args_parser.add_argument("--rank"             , action="store_true", help="Prints the rank/group of each result.")
     # inputs
     args_parser.add_argument("--tests"            , action="store_true", help="Executes all unittests.")
     args_parser.add_argument("--examples"         , nargs='?', type=str, const='*', help="Loads example basic blocks. A Wildcard pattern can be used to load only certain tests.")
@@ -219,47 +220,61 @@ def main():
     if not args.cpi:
         exit(0)
 
-    final_results = None
+    results = None
 
     # sequence timing analysis
     if args.sequence_analysis:
-        final_results = TimingsAnalyzer(print_history=args.print,
-                                        print_code_blocks=args.print_bb,
-                                        accumulate_stalls=args.print,
-                                        assume_same_pipeline=args.xisaac) \
+        results = TimingsAnalyzer(print_history=args.print,
+                                  print_code_blocks=args.print_bb,
+                                  accumulate_stalls=args.print,
+                                  assume_same_pipeline=args.xisaac) \
             .estimate_cpi(sequence_model, schedule_model, struct_model)
 
     # symbolic timing analysis
     elif args.symbolic_analysis:
-        final_results = TimingsAnalyzer(print_history=args.print,
-                                        print_code_blocks=args.print_bb,
-                                        accumulate_stalls=False, # not supported yet
-                                        assume_same_pipeline=args.xisaac) \
+        results = TimingsAnalyzer(print_history=args.print,
+                                  print_code_blocks=args.print_bb,
+                                  accumulate_stalls=False, # not supported yet
+                                  assume_same_pipeline=args.xisaac) \
             .solve_symbolic_delay(sequence_model, schedule_model, struct_model, symbolic_delay_vectors)
 
     ### Post Processing ###
-    if not final_results:
+    if not results:
         exit(0)
 
     # export results
     if isinstance(args.export, pathlib.Path):
-        for variant_name in final_results:
-            blocks = final_results[variant_name]
+        for variant_name in results:
+            blocks = results[variant_name]
             with open(args.cpi / f"{variant_name}_{args.export_suffix + "_" if args.export_suffix else ""}results.json", "w") as f:
                 f.write(json.dumps(blocks, indent=4))
 
+
     # print total CPI if possible
-    print()
-    for variant_name in final_results:
-        blocks       = final_results[variant_name]
+    final_results = {}
+    for variant_name in results:
+        blocks       = results[variant_name]
         total_weight = sum(bb.weight for bb in blocks.values() if bb.weight is not None)
         if total_weight == 0:
             print("ERROR: Cannot determine total CPI, missing weights for basic blocks!")
-            break
+            exit(0)
 
-        print(f"Variant: {variant_name:>15},\t",
-                f"total CPI: {sum((bb.cpi * bb.weight / total_weight) for bb in blocks.values()):.6f},\t",
-                f"total weight: {total_weight * 100:.5f}%")
+        final_results[variant_name] = dotdict({
+            "total_cpi": sum((bb.cpi * bb.weight / total_weight) for bb in blocks.values()), 
+            "total_weight": total_weight
+        })
+
+
+    if final_results:
+        ranks = { value: idx for idx, value in enumerate(sorted(set(result.total_cpi for result in final_results.values()))) } \
+            if args.rank else None
+
+        print()
+        for variant_name, result in final_results.items():
+            print(f"Variant: {variant_name:>15},\t",
+                f"total CPI: {result.total_cpi:.6f},\t",
+                f"total weight: {result.total_weight * 100:.5f}%",
+                f"\trank: {ranks[result.total_cpi] + 1}" if ranks else "")
 
 if __name__ == "__main__":
     main()

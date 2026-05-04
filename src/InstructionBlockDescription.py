@@ -155,7 +155,7 @@ class InstructionBlockDescription:
         # parse files
         for file in files:
             print(f"  > loading from file '{file.name}'...")
-            assert file.exists()
+            assert file.exists(), f"{file.name} not found!"
             try:
                 address_start = int(file.stem, 16)
             except ValueError:
