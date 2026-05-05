@@ -6,8 +6,6 @@ from objprint import op
 
 from src.Common import dotdict, Print
 
-_ignored_registers_ = set()
-
 class InstructionDescription(dotdict):
     """ Denotes a single instruction. """
 
@@ -60,6 +58,8 @@ class InstructionDescription(dotdict):
 
 class InstructionBlockDescription:
     """ Denotes a code block and its instructions. """
+    
+    _ignored_registers_ = set()
 
     def __init__(self, name:str, starting_address:int=0x0):
         self.name = name
@@ -84,10 +84,10 @@ class InstructionBlockDescription:
         if address is None:
             address = self.starting_address + (4 * len(self.instructions))
         instr = InstructionDescription(address, instr_name, instr_idx=len(self.instructions), rd=rd, rs1=rs1, rs2=rs2, imm=imm)
-        for register in (arg for arg in kwargs if arg not in _ignored_registers_):
+        for register in (arg for arg in kwargs if arg not in InstructionBlockDescription._ignored_registers_):
             print(f"{" " * Print.indent}> WARNING: ignoring all occurrences of register '{register}' " + \
                   f"(instr: {instr_name}, idx: {len(self.instructions)})")
-            _ignored_registers_.add(register)
+            InstructionBlockDescription._ignored_registers_.add(register)
         self.instructions.append(instr)
         return self
 

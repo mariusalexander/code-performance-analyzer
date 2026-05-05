@@ -9,7 +9,7 @@ class Timings:
     """ Data struct denoting timings of a schedule (i.e. values of timing variables and which registers are available). """
 
     # NOTE: corePerfDsl models that should be interpreted like register models have to be added here!
-    __known_register_models = ["regModel", "clobberModel"]
+    _known_register_models = ["regModel", "clobberModel"]
 
     __slots__ = ["timing_vars", "register_models", "connector_models"] 
 
@@ -18,9 +18,9 @@ class Timings:
         # each timing variable has a "history" (depth of edges/stage's capacity)
         self.timing_vars      = { timing_var.name : [ -1 for _ in range(0, timing_var.getNumElements()) ] for timing_var in sched_variant.getAllTimingVariables() } if sched_variant else {}
         # register models
-        self.register_models  = { model.name : {} for model in sched_variant.getAllConnectorModels() if model.name in Timings.__known_register_models } if sched_variant else {}
+        self.register_models  = { model.name : {} for model in sched_variant.getAllConnectorModels() if model.name in Timings._known_register_models } if sched_variant else {}
         # other connector models that are ignored (e.g. branch prediction)
-        self.connector_models = { model.name : {} for model in sched_variant.getAllConnectorModels() if model.name not in Timings.__known_register_models } if sched_variant else {}
+        self.connector_models = { model.name : {} for model in sched_variant.getAllConnectorModels() if model.name not in Timings._known_register_models } if sched_variant else {}
     
     def copy(self):
         """ 
@@ -61,7 +61,7 @@ class Timings:
         Returns the value of the given connector. If the connector belongs the to a register model, the value of the corresponding register is returned.
         """
         # register model
-        if connector_model.name in Timings.__known_register_models:
+        if connector_model.name in Timings._known_register_models:
             register_model = self.register_models[connector_model.name]
             # get which register was used from instruction operands
             assert connector_name in instr, f"Instruction '{instr.name}' requires operand '{connector_name}'! (undefined)"
@@ -84,7 +84,7 @@ class Timings:
         Updates the value of the given connector. If the connector belongs the to a register model, the value of the corresponding register is updated.
         """
         # register model
-        if connector_model.name in Timings.__known_register_models:
+        if connector_model.name in Timings._known_register_models:
             assert connector_name in instr, f"Instruction '{instr.name}' requires operand '{connector_name}'! (undefined)"
             register_no = instr[connector_name]
             self.register_models[connector_model.name][register_no] = node_delay

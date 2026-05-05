@@ -5,10 +5,10 @@ from collections import deque
 
 from src.Common import Print, Profile, dotdict, find_variant
 from src.InstructionBlockDescription import InstructionBlockDescription
+from src.MaxPlusAlgebra import DelayExpression
 from src.Timings import Timings
 from src.TimingsPrinter import TimingsPrinter
-from src.SequenceTransformer import SequenceTransformer, SequenceTimingModel, SequenceTimingVariant
-from src.MaxPlusAlgebra import DelayExpression, DelayExpression_v2
+from src.SequenceTransformer import SequenceTimingModel, SequenceTimingVariant
 
 from meta_models.scheduling_model.SchedulingModel import Variant as SchedulingModel, Variant as SchedVariant, SchedulingFunction, Node
 from meta_models.structural_model.StructuralModel import Variant as StructuralModel, Variant as StructVariant, Stage
@@ -48,11 +48,11 @@ class TimingsAnalyzer:
                 results[sequence_variant.name] = self.__estimate_cpi_for_variant(sequence_variant, sched_variant, struct_variant, sequence_model.code_blocks)
         return results
 
-    def solve_symbolic_delay(self, 
-                             sequence_model: SequenceTimingModel,
-                             schedule_model: SchedulingModel, 
-                             struct_model: StructuralModel,
-                             symbolic_delay_vectors: Dict[str, Dict[str, int|float]]):
+    def solve_symbolic_delay_for_cpi(self, 
+                                     sequence_model: SequenceTimingModel,
+                                     schedule_model: SchedulingModel, 
+                                     struct_model: StructuralModel,
+                                     symbolic_delay_vectors: Dict[str, Dict[str, int|float]]):
         print("\n-- FRONTEND: SYMBOLIC TIMING ANALYSIS --")
         try:
             [sequence_variant] = sequence_model.variants
@@ -68,7 +68,7 @@ class TimingsAnalyzer:
                 assert variant_name not in results, \
                     f"Duplicate result entry for variant '{variant_name}'!"
 
-                self.input_vector = symbolic_delay_vectors[variant_name]
+                self._input_vector = symbolic_delay_vectors[variant_name]
                 results[variant_name] = self.__estimate_cpi_for_variant(sequence_variant, sched_variant, struct_variant, sequence_model.code_blocks)
 
         return results
@@ -147,8 +147,8 @@ class TimingsAnalyzer:
         expected_end_cycle = end_stage.value + num_instructions - 1
 
         actual_end_cycle   = final_timings.timing_vars[end_stage.name][0]
-        if isinstance(actual_end_cycle, DelayExpression|DelayExpression_v2):
-            actual_end_cycle = actual_end_cycle.resolve(self.input_vector)
+        if isinstance(actual_end_cycle, DelayExpression):
+            actual_end_cycle = actual_end_cycle.resolve(self._input_vector)
             
         total_stall_cycles = actual_end_cycle - expected_end_cycle
         cpi = (num_instructions + total_stall_cycles) / num_instructions
@@ -175,18 +175,12 @@ class TimingsAnalyzer:
         if instr_name in self.instr2latencies:
             return self.instr2latencies[instr_name]
 
-        # timings, _ = SequenceTransformer().analyze_basic_block(sched_variant, InstructionBlockDescription("dummy").addInstruction(instr_name, rd=0, rs1=0, rs2=0))
-        # max_timing = max((dotdict({ "name": name, "value": max(history)}) for name, history in timings.timing_vars.items()), key=lambda e: e.value)
-        # self.instr2latencies[instr_name] = max_timing
-        # return max_timing
-
         pipeline = struct_variant.getPipeline()
         has_timing_var = lambda e: not e.isDynamic() and e.getTimingVariable()
         [sched_function] = filter(lambda e: e.name == instr_name, sched_variant.getAllSchedulingFunctions())
         used_timing_vars = list(edge.getTimingVariable().name for node in sched_function.getAllNodes()
                                                               for edge in node.getAllOutEdges() if has_timing_var(edge))
         end_stage = TimingsAnalyzer.__get_expected_end_cycle(used_timing_vars, sched_function, next_stages=pipeline.getFirstStages(), instr_name=instr_name)
-        # print(max_timing, "vs", end_stage)
         # cache expected latency of stage for current instruction
         self.instr2latencies[instr_name] = end_stage
         return end_stage

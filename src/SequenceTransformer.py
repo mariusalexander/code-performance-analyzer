@@ -4,15 +4,14 @@ from collections import deque
 from typing import List, Dict
 from itertools import chain
 
-from src.Common import dotdict, Profile, Print
+from src.Common import Profile, Print
 from src.InstructionBlockDescription import InstructionBlockDescription, InstructionDescription
 from src.Timings import Timings
 from src.TimingsPrinter import TimingsPrinter
-from src.MaxPlusAlgebra import DelayVariable, PlusTerm, DelayFunction, DelayExpression, DelayExpression_v2
+from src.MaxPlusAlgebra import DelayExpression
 
 from meta_models.scheduling_model.SchedulingModel import SchedulingModel, Variant as SchedVariant, SchedulingFunction, Node
 
-_ignored_connector_models = set()
 
 class SequenceTimingModel:
 
@@ -43,6 +42,8 @@ class SequenceTimingVariant:
 
 class SequenceTransformer:
     """ Performs a static timing analysis on a code block similarly to how the C++ timing model operates. """
+
+    _ignored_connector_models = set()
 
     def __init__(self, 
                  verbose=False,
@@ -123,9 +124,9 @@ class SequenceTransformer:
         output_timings  = input_timings.copy()
         timings_history = []
 
-        for connector_model in (c for c in input_timings.connector_models if c not in _ignored_connector_models):
+        for connector_model in (c for c in input_timings.connector_models if c not in SequenceTransformer._ignored_connector_models):
             print(f"   > WARNING: The connector model '{connector_model}' may not be handled correctly!")
-            _ignored_connector_models.add(connector_model)
+            SequenceTransformer._ignored_connector_models.add(connector_model)
 
         for instr in code_block.instructions:
 
@@ -232,7 +233,7 @@ class SequenceTransformer:
         # NOTE: adapt logic once corePerfDsl support symbolic delays
         is_symbolic = any(name in node.name and "stage" not in node.name for name in self.symbolic_vars)
 
-        result = DelayExpression.merge_v2(
+        result = DelayExpression.merge(
             inputs=chain(in_connector_delays, in_node_delays), 
             node_delay=(node.getDelay() + dynamic_delay) if not is_symbolic else 0,
             symbolic_name=node.name if is_symbolic else None
@@ -244,41 +245,6 @@ class SequenceTransformer:
 
         return result
 
-    def ___calculate_symbolic_node_delay_v2(self,
-                                         node: Node,
-                                         in_node_delays,
-                                         in_connector_delays,
-                                         dynamic_delay):
-        functions = DelayExpression_v2()
-
-        # delays of all ingoing nodes
-        for node_in in in_node_delays:
-            for other_function in node_in:
-                functions.merge(other_function)
-
-        for connector_in in in_connector_delays:
-            if isinstance(connector_in, DelayExpression_v2):
-                for other_function in connector_in:
-                    functions.merge(other_function)
-            else:
-                functions.merge_delay(connector_in)
-
-        # symbolic 
-        # NOTE: adapt logic once corePerfDsl support symbolic delays
-        is_symbolic = any(name in node.name and "stage" not in node.name for name in self.symbolic_vars)
-        if is_symbolic:
-            functions.add_coefficient(DelayVariable(node.name, 1))
-        else:
-            if node.getDelay() > 0:
-                functions.plus(node.getDelay())
-            if dynamic_delay > 0:
-                functions.plus(dynamic_delay)
-
-        if self.verbose:
-            with Print.indent_scope(31):
-                print(f"    > {node.name:<22} = {functions}")
-
-        return functions
 
     def __get_delays_of_in_nodes(self, 
                                  node: Node, 

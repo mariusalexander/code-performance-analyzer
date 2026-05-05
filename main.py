@@ -1,22 +1,16 @@
 #!/usr/bin/python3
 
-import pathlib
-import argparse
-import fnmatch
-import pickle
-import json
+from src.Common import Profile
+with Profile("import"):
+    import pathlib
+    import argparse
+    import fnmatch
+    import pickle
 
-from backends.schedule_viewer.SchedulingModelViewer import SchedulingModelViewer
-
-from src.Common import Profile, Print, dotdict
-from src.InstructionBlockDescription import InstructionBlockDescription
-from src.BlockSchedulingTransformer import BlockSchedulingTransformer
-
-from src.SequenceTransformer import SequenceTransformer
-from src.TimingsAnalyzer import TimingsAnalyzer
-
-import tests.TestVectors as Examples
-import tests.UnitTests as UnitTests
+    from src.Common import Profile, Print, dotdict
+    from src.InstructionBlockDescription import InstructionBlockDescription
+    from src.SequenceTransformer import SequenceTransformer
+    from src.TimingsAnalyzer import TimingsAnalyzer
 
 def main():
 
@@ -181,9 +175,11 @@ def main():
             code_blocks = InstructionBlockDescription.load_from_files(args.files, verbose=args.verbose)
     # load example code blocks
     elif args.examples:
+        import tests.TestVectors as Examples # lazy import
         code_blocks = Examples.test_vectors(pattern=args.examples)
     # run unittests
     elif args.tests:
+        import tests.UnitTests as UnitTests # lazy import
         success = UnitTests.run()
         exit(success)
 
@@ -195,6 +191,7 @@ def main():
 
     # generate block scheduling functions
     if args.block_schedule:
+        from src.BlockSchedulingTransformer import BlockSchedulingTransformer # lazy import
 
         block_schedule = BlockSchedulingTransformer(verbose=args.verbose,
                                                     rename_edges=args.schedule_graph) \
@@ -202,6 +199,8 @@ def main():
 
         # render block schedules
         if args.schedule_graph:
+            from backends.schedule_viewer.SchedulingModelViewer import SchedulingModelViewer # lazy import
+
             SchedulingModelViewer() \
                 .execute(block_schedule, args.out_dir, alternate_color=True, show_delays=True)
 
@@ -236,7 +235,7 @@ def main():
                                   print_code_blocks=args.print_bb,
                                   accumulate_stalls=False, # not supported yet
                                   assume_same_pipeline=args.xisaac) \
-            .solve_symbolic_delay(sequence_model, schedule_model, struct_model, symbolic_delay_vectors)
+            .solve_symbolic_delay_for_cpi(sequence_model, schedule_model, struct_model, symbolic_delay_vectors)
 
     ### Post Processing ###
     if not results:
@@ -244,6 +243,8 @@ def main():
 
     # export results
     if isinstance(args.export, pathlib.Path):
+        import json # lazy import
+        
         for variant_name in results:
             blocks = results[variant_name]
             with open(args.cpi / f"{variant_name}_{args.export_suffix + "_" if args.export_suffix else ""}results.json", "w") as f:
