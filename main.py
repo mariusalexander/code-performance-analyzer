@@ -63,7 +63,7 @@ def main():
     args_parser.add_argument("-d", "--default-dynamic-delay", nargs=  1, type=int, default=[None], help="Sets a default value for dynamic delays.")
     # targets
     args_parser.add_argument("--sequence-analysis", action="store_true", help="Determine CPI of basic blocks by sequentially evaluating the timing model for each instruction.")
-    args_parser.add_argument("--symbolic-analysis", nargs=  1, type=str, default=[""], 
+    args_parser.add_argument("--symbolic-analysis", nargs=  1, type=str, default=[""],
                                                     help="Comma separated list of keywords to find nodes whose delay should be made symbolic. " +\
                                                          "Initiates symbolic sequenced timing analysis.")
     args_parser.add_argument("--cpi"              , action="store_true", help="Estimates the CPI for each instruction block. Prints to stdout.")
@@ -196,7 +196,7 @@ def main():
     # generate block scheduling functions
     if args.block_schedule:
 
-        block_schedule = BlockSchedulingTransformer(verbose=args.verbose, 
+        block_schedule = BlockSchedulingTransformer(verbose=args.verbose,
                                                     rename_edges=args.schedule_graph) \
             .transform(schedule_model, code_blocks, brpred_option=args.brpred)
 
@@ -260,7 +260,7 @@ def main():
             exit(0)
 
         final_results[variant_name] = dotdict({
-            "total_cpi": sum((bb.cpi * bb.weight / total_weight) for bb in blocks.values()), 
+            "total_cpi": sum((bb.cpi * bb.weight / total_weight) for bb in blocks.values()),
             "total_weight": total_weight
         })
 
@@ -277,4 +277,5 @@ def main():
                 f"\trank: {ranks[result.total_cpi] + 1}" if ranks else "")
 
 if __name__ == "__main__":
-    main()
+    with Profile("main"):
+        main()
