@@ -8,7 +8,7 @@ from src.Common import dotdict, Profile, Print
 from src.InstructionBlockDescription import InstructionBlockDescription, InstructionDescription
 from src.Timings import Timings
 from src.TimingsPrinter import TimingsPrinter
-from src.MaxPlusAlgebra import DelayVariable, PlusTerm, DelayFunction, DelayExpression
+from src.MaxPlusAlgebra import DelayVariable, PlusTerm, DelayFunction, DelayExpression, DelayExpression_v2
 
 from meta_models.scheduling_model.SchedulingModel import SchedulingModel, Variant as SchedVariant, SchedulingFunction, Node
 
@@ -229,14 +229,35 @@ class SequenceTransformer:
                                          in_node_delays,
                                          in_connector_delays,
                                          dynamic_delay):
-        functions = DelayExpression()
+        # NOTE: adapt logic once corePerfDsl support symbolic delays
+        is_symbolic = any(name in node.name and "stage" not in node.name for name in self.symbolic_vars)
+
+        result = DelayExpression.merge_v2(
+            inputs=chain(in_connector_delays, in_node_delays), 
+            node_delay=(node.getDelay() + dynamic_delay) if not is_symbolic else 0,
+            symbolic_name=node.name if is_symbolic else None
+        )
+
+        if self.verbose:
+            with Print.indent_scope(31):
+                print(f"    > {node.name:<22} = {result}")
+
+        return result
+
+    def ___calculate_symbolic_node_delay_v2(self,
+                                         node: Node,
+                                         in_node_delays,
+                                         in_connector_delays,
+                                         dynamic_delay):
+        functions = DelayExpression_v2()
+
         # delays of all ingoing nodes
         for node_in in in_node_delays:
             for other_function in node_in:
                 functions.merge(other_function)
 
         for connector_in in in_connector_delays:
-            if isinstance(connector_in, DelayExpression):
+            if isinstance(connector_in, DelayExpression_v2):
                 for other_function in connector_in:
                     functions.merge(other_function)
             else:
