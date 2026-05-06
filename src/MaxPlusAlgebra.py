@@ -212,7 +212,11 @@ class PlusTerm(BaseTerm):
         """
         assert isinstance(other, PlusTerm), \
                f"Incompatible type '{type(other)}', expected '{type(self)}'!"
-        return all((name in other and other.count(name) == self.count(name)) for name in self.names())
+        # each variable should be listed only once!
+        assert len(set(self.names())) == len(self), \
+               f"Term {self} contains duplicate variables!"
+        return len(other) == len(self) and \
+               all((var.name in other and other.count(var.name) == var.delay) for var in self)
 
     def append(self, variable: DelayVariable) -> Self:
         """
@@ -342,6 +346,7 @@ class DelayExpression:
 
     __slots__ = ["functions"] # memory optimization
 
+    # TODO: make this variable
     max_symbolic_delay = 3
     
     def __init__(self, iterable=[DelayFunction()]):
@@ -408,8 +413,12 @@ class DelayExpression:
         Returns whether `candidate` is dominated by `others` by checking all critical vertecies over [0, upper]^n
         (dominance checking of picewise-linear-max-plus function over bounded domain)
         """
+        # abort if any function is equal to candidate
+        if any(candidate == other for other in others):
+            return True
+
         upper = DelayExpression.max_symbolic_delay
-        
+
         # build the complete assignment upfront to safe on allocations
         assignment = { name: upper for name in candidate.coefficients.names()    if name not in others_names } | \
                      { name: 0     for name in others_names                      if name not in candidate.coefficients }
@@ -429,7 +438,7 @@ class DelayExpression:
             # found a vertex where candidate function is not dominated -> must append term
             if candidate_val > others_max:
                 return False
-
+        
         return True
 
     @staticmethod
