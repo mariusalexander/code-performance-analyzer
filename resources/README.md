@@ -1,15 +1,15 @@
 # Other Resources
 
-Here, other resources are saved that are not necessary for this code-project but were used to compileor extract results.
+Here, other resources are saved that are not necessary for this code-project but were used to compile or extract results.
 
 ### `normalize_choices.py`
 
-Extracts basic blocks for the CPI prodiction from traces generated in the GenIE/XISAAC workflow.
+Extracts basic blocks for the CPI prediction from traces generated in the GenIE/XISAAC workflow.
 
 **Signature:**
 
 ```bash
-python3 normalize_choices.py <path-to-experiment> [-h] [-o OUT_DIR] [-x] [-p] results_dir
+python3 normalize_choices.py <path-to-experiment> [-h] [-x] [-p] [-o OUT_DIR]
 ```
 
 - `-h`: Help

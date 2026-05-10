@@ -1,14 +1,14 @@
-# Code Performance Analyzer
+# Code Performance Analyzer (Outdated Description!)
 
 This Python tool attempts to predict the CPI (clocks per instruction) of a processor for one or multiple code blocks by statically analyzing each code block.
 
-The code blocks are usually expected to be (pseudo) basic blocks but it is also possible to analyze code blocks that contain multiple branch instructions. 
+The code blocks are usually expected to be (pseudo) basic blocks but it is also possible to analyze code blocks that contain multiple branch instructions.
 However, delays due to branch prediction cannot be be acounted for as of now (2026-02).
 
 The tool builds on top of [*M2-ISA-R-Perf*](https://github.com/mariusalexander/M2-ISA-R-Perf/tree/implement-block-scheduling-model) by building a directed acyclic graph denoting the chain of micro-operations necessary for executing the instructions in a given code block.
 Using this graph data hazards and microarchitectural hazards may be detected, that influence the estimated CPI.
-By comparing predictions for varying microarchitectures, design space exploration may be fascilitated without the need to simulate all variants. 
-While the accurarcy of the prediction may be lacking, the fidelity is expected to follow the results of the simulations; thus allowing to weighing up candidates. 
+By comparing predictions for varying microarchitectures, design space exploration may be fascilitated without the need to simulate all variants.
+While the accurarcy of the prediction may be lacking, the fidelity is expected to follow the results of the simulations; thus allowing to weighing up candidates.
 
 ## Requirements
 
@@ -44,7 +44,7 @@ $ source venv/bin/activate
 ### Signature:
 
 ```
-$ PYTHONPATH=... python3 main.py <path/to/schedule.model> [<path/to/frontend.model>] 
+$ PYTHONPATH=... python3 main.py <path/to/schedule.model> [<path/to/frontend.model>]
                                 [-o OUT-DIR] [-v] [--examples [EXAMPLES]] [--tests [TESTS]] [--files FILES [FILES ...]]
                                 [--schedule-graph] [--delay-graph] [--cpi]
 ```

@@ -18,12 +18,29 @@ def main():
             raise ValueError()
         return path
 
-    args_parser = argparse.ArgumentParser()
-    args_parser.add_argument("results_dir", type=result_dir_type, help="Path to a result directory with a  name in the form of <yyyymmdd>T<hhmmss>")
-    args_parser.add_argument("-o", "--out_dir", type=lambda path: pathlib.Path(path).resolve(), help="...")
-    args_parser.add_argument("-x", "--use_extension", action="store_true", help="...")
-    args_parser.add_argument("-p", "--print", action="store_true", help="Prints results")
-    args = args_parser.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "results_dir",
+        type=result_dir_type,
+        help="Path to a result directory with a  name in the form of <yyyymmdd>T<hhmmss>"
+    )
+    parser.add_argument(
+        "-o", "--out_dir",
+        type=lambda path: pathlib.Path(path).resolve(),
+        help="Optional directory, to export the extracted basic blocks. " + \
+             "Generates directory structure based on input benchmark and timestamp."
+    )
+    parser.add_argument(
+        "-x", "--use_extension",
+        action="store_true",
+        help="Extracts basic blocks with custom instruction instead."
+    )
+    parser.add_argument(
+        "-p", "--print",
+        action="store_true",
+        help="Prints the results metadata."
+    )
+    args = parser.parse_args()
 
     timestamp = os.path.basename(args.results_dir)
     print(timestamp)
@@ -40,7 +57,7 @@ def main():
 
     for file in choices_file, llvm_bbs_file, op_trace_file, instr_trace_file:
         if not file.is_file() or not file.exists():
-            args_parser.error(f"File '{file}' not found!")
+            parser.error(f"File '{file}' not found!")
 
     print(f"Loading '{str(choices_file).replace(str(args.results_dir), "")}'...")
     choices = pd.read_pickle(choices_file)
@@ -97,6 +114,7 @@ def main():
         bb["weight"] *= factor
 
     if args.print:
+        print("experiment.json")
         print(json.dumps(experiment, indent=4))
 
     if args.out_dir:
