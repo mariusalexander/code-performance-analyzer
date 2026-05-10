@@ -244,7 +244,7 @@ def main():
     # export results
     if isinstance(args.export, pathlib.Path):
         import json # lazy import
-        
+
         for variant_name in results:
             blocks = results[variant_name]
             with open(args.cpi / f"{variant_name}_{args.export_suffix + "_" if args.export_suffix else ""}results.json", "w") as f:
@@ -267,7 +267,9 @@ def main():
 
 
     if final_results:
-        ranks = { value: idx for idx, value in enumerate(sorted(set(result.total_cpi for result in final_results.values()))) } \
+        # NOTE: rounding cpi to avoid generating multiple ranks for slight variations in CPI due to weighting
+        max_digits = 10
+        ranks = { value: (idx + 1) for idx, value in enumerate(sorted(set(round(result.total_cpi, max_digits) for result in final_results.values()))) } \
             if args.rank else None
 
         print()
@@ -275,7 +277,7 @@ def main():
             print(f"Variant: {variant_name:>15},\t",
                 f"total CPI: {result.total_cpi:.6f},\t",
                 f"total weight: {result.total_weight * 100:.5f}%",
-                f"\trank: {ranks[result.total_cpi] + 1}" if ranks else "")
+                f"\trank: {ranks[round(result.total_cpi, max_digits)]}" if ranks else "")
 
 if __name__ == "__main__":
     with Profile("main"):

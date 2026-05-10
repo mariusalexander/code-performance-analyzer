@@ -408,11 +408,32 @@ class DelayExpression:
         return self
 
     @staticmethod
+    def _assert_uniform_coefficients(candidate: DelayFunction, others: List['DelayFunction']) -> None:
+        """
+        Asserts that current is_covery_by approach is valid:
+        For every variable, all coefficients across candidate and others must be identical.
+        """
+        coeff_map: Dict[str, int] = {}
+        
+        for f in [candidate, *others]:
+            for var in f.coefficients:
+                if var.name not in coeff_map:
+                    coeff_map[var.name] = var.delay
+                elif coeff_map[var.name] != var.delay:
+                    raise AssertionError(
+                        f"Variable '{var.name}' has inconsistent coefficients: "
+                        f"{coeff_map[var.name]} vs {var.delay}. "
+                        f"Vertex-only dominance check is not valid.",
+                        str(candidate), others
+                    )
+
+    @staticmethod
     def is_covered_by(candidate: DelayFunction, others: List['DelayFunction'], others_names: List[str]) -> bool:
         """
         Returns whether `candidate` is dominated by `others` by checking all critical vertecies over [0, upper]^n
         (dominance checking of picewise-linear-max-plus function over bounded domain)
         """
+        #DelayExpression._assert_uniform_coefficients(candidate, others)
         # abort if any function is equal to candidate
         if any(candidate == other for other in others):
             return True

@@ -238,7 +238,7 @@ class TimingsAnalyzer:
             if latency > 1:
                 print( "   > WARNING:",
                       f"mirco-op. '{current_stage.name}' of instr. '{instr_name}' " + \
-                      "will always induce +{latency - 1} stall cycle(s)!")
+                      f"will always induce +{latency - 1} stall cycle(s)!")
                 latency = 1
             assert latency >= 0, f"Stage '{current_stage.name}' of instr. '{instr_name}'" + \
                                  f"finishes before mirco-op started '{source_mirco_op.name}'?"
