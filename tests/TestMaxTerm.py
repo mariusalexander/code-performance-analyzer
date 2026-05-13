@@ -2,92 +2,81 @@ from typing import List, Self
 from objprint import op
 
 from src.Common import PrintDisabled, Print
-from src.MaxPlusAlgebra import DelayVariable, MaxTerm, DelayFunction, DelayExpression
+from src.MaxPlusAlgebra import DelayVariable, PlusTerm, DelayFunction, DelayExpression
 
-def test_term_simple():
-    term = MaxTerm()
-    term.append(DelayVariable("a", 3))
-    term.append(DelayVariable("b", 2))
-    term.append(DelayVariable("c", 1))
-    return term
-
-def test_term_with_duplicates():
-    term = MaxTerm()
-    term.append(DelayVariable("a", 3))
-    term.append(DelayVariable("b", 2))
-    term.append(DelayVariable("c", 1))
-    term.append(DelayVariable("a", 2))
-    term.append(DelayVariable("c", 1))
-    term.append(DelayVariable("a", 0))
-    return term
-
-def test_vectors():
-    reference = {"a":3, "b":2, "c":1}
-    return (test_term_with_duplicates, reference), (test_term_simple, reference)
+def iterable(*iter):
+    for i in iter:
+        yield i
 
 ###############################################################################
 
-def MaxTerm_max_delay():
-    for factory, reference in test_vectors():
-        term = factory()
-        assert all(term.max_delay(v.name) == reference[v.name] for v in term), f"max_delay{term} should yield {reference}"
+DV = DelayVariable
 
-def MaxTerm_plus():
-    for factory, reference in test_vectors():
-        term = factory()
-        term.plus(1)
-        assert all(term.max_delay(v.name) == (reference[v.name] + 1) for v in term), f"max{term} should equal {reference} + 1"
+def DelayExpression_merge_timing_vars():
+    # case 1
+    inputs = iterable(-1, )
+    result = DelayExpression.merge(inputs)
+    expected = 0
+    assert result.resolve() == expected, f"{result} -> {result.resolve()} vs {expected}!"
 
-def MaxTerm_names():
-    for factory, reference in test_vectors():
-        term = factory()
-        reference = list(reference.keys())
-        assert list(term.names()) == reference, f"names: {list(term.names())} != {reference}"
+    # case 2
+    inputs = iterable(10, 5, 4)
+    result = DelayExpression.merge(inputs)
+    expected = 10
+    assert result.resolve() == expected, f"{result} -> {result.resolve()} vs {expected}!"
+    
+    # case 3
+    delay  = 1
+    inputs = iterable(1, 2, 3)
+    result = DelayExpression.merge(inputs, delay)
+    expected = 3 + delay
+    assert result.resolve() == expected, f"{result} -> {result.resolve()} vs {expected}!"
 
-def MaxFunction_merge():
-    Print.indent = 0
+def DelayExpression_merge_expressions():
 
-    f1 = DelayFunction()
-    f1.merge_delay(5)
+    f1 = DelayFunction().merge_delay(10)
+    f2 = DelayFunction().merge_delay( 0).add_coefficient(DV("A", 3))
+    f3 = DelayFunction().merge_delay( 8).add_coefficient(DV("A", 1))
+    f4 = DelayFunction().merge_delay( 6).add_coefficient(DV("A", 2))
+    f5 = DelayFunction().merge_delay( 7).add_coefficient(DV("A", 1))
 
-    f2 = DelayFunction()
-    f2.merge_delay(2)
-    f2.add_coefficient(DelayVariable("d1", 1))
+    DelayExpression.max_symbolic_delay = 10
+    e1 = DelayExpression([
+        f1,
+        f2,
+        f3,
+        f4,
+        f4,
+        f5,
+        f1
+    ])
+    print(repr(e))
+    e.remove_redundant_terms()
+    print(repr(e))
 
-    funcs = DelayExpression()
-    funcs.merge(f1)
-    funcs.merge(f2)
-    funcs.merge(f2)
+    print()
 
-    f3 = DelayFunction()
-    f3.merge_delay(1)
-    f3.add_coefficient(DelayVariable("d1", 1))
-    funcs.merge(f3)
-
-    f4 = DelayFunction()
-    f4.merge_delay(4)
-    f4.add_coefficient(DelayVariable("d2", 1))
-    funcs.merge(f4)
-
-    f5 = DelayFunction()
-    f5.merge_delay(5)
-    f5.add_coefficient(DelayVariable("d1", 1))
-    f5.add_coefficient(DelayVariable("d2", 2))
-    funcs.merge(f5)
-
-    f6 = DelayFunction()
-    f6.merge_delay(7)
-    funcs.merge(f6)
-
-    assert funcs.resolve({ "d1": 0, "d2": 0 }) == 7
-    assert funcs.resolve({ "d1": 1, "d2": 0 }) == 7
-    assert funcs.resolve({ "d1": 1, "d2": 1 }) == 8
-    assert funcs.resolve({ "d1": 2, "d2": 3 }) == 13
+    e = DelayExpression([
+        DelayFunction() \
+            .merge_delay(4).add_coefficient(DV("A", 1)).add_coefficient(DV("B", 1)).add_coefficient(DV("C", 1)).add_coefficient(DV("D", 1)).add_coefficient(DV("E", 1)).add_coefficient(DV("F", 1)),
+        DelayFunction() \
+            .merge_delay(5).add_coefficient(DV("D", 1)).add_coefficient(DV("E", 1)).add_coefficient(DV("F", 1)),
+        DelayFunction() \
+            .merge_delay(5).add_coefficient(DV("A", 1)).add_coefficient(DV("B", 1)).add_coefficient(DV("C", 1)),
+        DelayFunction() \
+            .merge_delay(6)
+    ])
+    print(repr(e))
+    e.remove_redundant_terms()
+    print(repr(e))
 
 def tests():
+    Print.indent = 0
+
     print("  > Testing 'MaxTerm':")
-    for test_function in MaxTerm_max_delay, MaxTerm_plus, MaxTerm_names, \
-                         MaxFunction_merge:
+    for test_function in \
+            DelayExpression_merge_timing_vars, \
+            DelayExpression_merge_expressions:
         print(f"   > executing {test_function.__name__}...")
         test_function()
     print("   > success!")

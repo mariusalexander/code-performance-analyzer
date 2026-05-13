@@ -70,6 +70,7 @@ class TimingsAnalyzer:
 
                 self._input_vector = symbolic_delay_vectors[variant_name]
                 results[variant_name] = self.__estimate_cpi_for_variant(sequence_variant, sched_variant, struct_variant, sequence_model.code_blocks)
+                print( "   > vector:", ', '.join(f"{name}: {value}" for name, value in self._input_vector.items()))
 
         return results
 
@@ -92,11 +93,11 @@ class TimingsAnalyzer:
             results[code_block.name] = result
 
             print( "   >",
-                f"code block: {code_block.name:>10},",
-                f"CPI: {result.cpi:>8.6f},",
-                f"instructions: {result.num_instructions:>3},",
-                f"stall cycles: {result.total_stall_cycles:>3},",
-                f"rel. weight: {result.weight:.5f}")
+                 f"code block: {code_block.name:>10},",
+                 f"CPI: {result.cpi:>8.6f},",
+                 f"instructions: {result.num_instructions:>3},",
+                 f"stall cycles: {result.total_stall_cycles:>3},",
+                 f"rel. weight: {result.weight:.5f}")
 
             if self.print_code_blocks:
                 with Print.indent_scope(3):
@@ -149,7 +150,7 @@ class TimingsAnalyzer:
         actual_end_cycle   = final_timings.timing_vars[end_stage.name][0]
         if isinstance(actual_end_cycle, DelayExpression):
             actual_end_cycle = actual_end_cycle.resolve(self._input_vector)
-            
+
         total_stall_cycles = actual_end_cycle - expected_end_cycle
         cpi = (num_instructions + total_stall_cycles) / num_instructions
 
