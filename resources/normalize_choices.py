@@ -120,7 +120,10 @@ def main():
     if args.out_dir:
         out_dir = f"{args.out_dir}/{benchmark}/{timestamp}/"
         print("copying CV32E40PXISAAC.corePerfDsl to", out_dir)
-        shutil.copy(f"{args.results_dir}/work/local/etiss_perf_filtered_selected/CV32E40PXISAAC.corePerfDsl", out_dir)
+        try:
+            shutil.copy(f"{args.results_dir}/work/local/etiss_perf_filtered_selected/CV32E40PXISAAC.corePerfDsl", out_dir)
+        except FileNotFoundError:
+            print("ERROR: cannot locate .corePerfDsl!")
         out_dir = f"{out_dir}/{"xisaac" if args.use_extension else "default"}"
         with open(f"{out_dir}/experiment.json", "w") as f:
             f.write(json.dumps(experiment, indent=4))
