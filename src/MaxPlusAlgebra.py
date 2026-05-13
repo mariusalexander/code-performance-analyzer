@@ -461,8 +461,8 @@ class DelayExpression:
 
     # delegate function
     def can_merge(*args):
-        #return DelayExpression.can_merge_v2(*args) # still fast and should not drop any terms of relevance (may keep some redundant terms?)
-        return DelayExpression.can_merge_v1(*args) # fastest for large BBs but may drop relevant terms?
+        return DelayExpression.can_merge_v2(*args) # still fast and should not drop any terms of relevance (may keep some redundant terms?)
+        #return DelayExpression.can_merge_v1(*args) # fastest for large BBs but may drop relevant terms?
 
     @staticmethod
     def merge(inputs, node_delay=0, symbolic_name=None) -> 'DelayExpression':
