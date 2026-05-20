@@ -67,7 +67,7 @@ class BlockSchedulingTransformer:
             "regModel" : "Xd",
             "clobberModel": "Cb_in",
         }
-        self._branch_prediction_models  = ["noBranchPredModel", "staBranchPredModel", "dynBranchPredModel"]
+        self._branch_prediction_models  = ["noBranchPredModel", "staBranchPredModel", "dynBranchPredModel", "perfectBranchPredModel"]
         self._supported_models = self._register_models + self._branch_prediction_models
 
     def transform(self, sched_model:SchedulingModel, block_descriptions:List[InstructionBlockDescription], brpred_option:str) -> SchedulingModel:

@@ -126,6 +126,6 @@ class TimingsPrinter:
         row += f" {self.t_spacer} ".join(self.__timing_var_column(timings.timing_vars[name], name).rjust(spacing) for name, spacing in self.timing_vars_spacing.items())
         row += f" {self.w_spacer} "
         row += f" {self.w_spacer} ".join(self.__register_column(timings.register_models[model]).rjust(spacing) for model, spacing in self.register_spacing.items())
-        if stall_cycles > 0:
-            row += f" (+{stall_cycles} CC)"
+        if stall_cycles !=  0:
+            row += f" ({'+' if stall_cycles > 0 else ''}{stall_cycles} CC)"
         self.print(row)

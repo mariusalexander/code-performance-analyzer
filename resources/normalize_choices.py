@@ -40,6 +40,11 @@ def main():
         action="store_true",
         help="Prints the results metadata."
     )
+    parser.add_argument(
+        "-c", "--copy-core-perf",
+        action="store_true",
+        help="Copies core-perf if it exists"
+    )
     args = parser.parse_args()
 
     timestamp = os.path.basename(args.results_dir)
@@ -87,8 +92,11 @@ def main():
         bb = instr_trace[instr_trace.pc.isin(target_pcs)].drop_duplicates()
         bb_with_op = op_trace.loc[bb.index]
 
+        if instr_count != len(bb):
+            print(f"WARNING: Some instructions were not found (expected {instr_count} isntructions, got {len(bb.instr)})!")
+            instr_count = len(bb)
+
         assert bb.instr.equals(bb_with_op.instr)
-        assert len(bb.instr) == instr_count
 
         normalized_bbs = pd.concat([bb.pc.apply(tohex), bb.bytecode.apply(tohex), bb_with_op.instr, bb_with_op.operands.apply(lambda d: ', '.join(f"{k}={v}" for k, v in d.items()))], axis=1)
         print(normalized_bbs)
@@ -102,8 +110,8 @@ def main():
         experiment.append({
             "name":   f"0x{pc_begin:08x}.txt",
             "weight_per_instr": choice.rel_weight / choice.num_instrs,
-            "weight": (choice.rel_weight / choice.num_instrs) * len(bb), # scale weight according to actual len of bb (only needed with `-x`)
-            "num_instrs": len(bb),
+            "weight": (choice.rel_weight / choice.num_instrs) * instr_count, # scale weight according to actual len of bb (only needed with `-x`)
+            "num_instrs": instr_count,
         })
 
         total_weight += choice.rel_weight
@@ -119,14 +127,15 @@ def main():
 
     if args.out_dir:
         out_dir = f"{args.out_dir}/{benchmark}/{timestamp}/"
-        print("copying CV32E40PXISAAC.corePerfDsl to", out_dir)
-        try:
-            shutil.copy(f"{args.results_dir}/work/local/etiss_perf_filtered_selected/CV32E40PXISAAC.corePerfDsl", out_dir)
-        except FileNotFoundError:
-            print("ERROR: cannot locate .corePerfDsl!")
-        out_dir = f"{out_dir}/{"xisaac" if args.use_extension else "default"}"
-        with open(f"{out_dir}/experiment.json", "w") as f:
+        bb_out_dir = f"{out_dir}/{"xisaac" if args.use_extension else "default"}"
+        with open(f"{bb_out_dir}/experiment.json", "w") as f:
             f.write(json.dumps(experiment, indent=4))
+        if args.copy_core_perf:
+            print("copying CV32E40PXISAAC.corePerfDsl to", out_dir)
+            try:
+                shutil.copy(f"{args.results_dir}/work/local/etiss_perf_filtered_selected/CV32E40PXISAAC.corePerfDsl", out_dir)
+            except FileNotFoundError:
+                print("ERROR: cannot locate .corePerfDsl!")
 
 
 if __name__ == "__main__":

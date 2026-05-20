@@ -573,7 +573,7 @@ class DelayExpression:
         shared_names = [ name for name in candidate.names() if name not in assignment ]
         # add shared variables
         assignment  |= { name: -1 for name in shared_names }
-        
+
         for values in product((0, upper), repeat=len(shared_names)):
             # update in place
             for name, value in zip(shared_names, values):

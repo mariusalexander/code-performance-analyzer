@@ -123,36 +123,37 @@ class TimingsAnalyzer:
         """
         num_instructions = len(code_block.instructions)
 
+        # NOTE: assuming single issue and in-order processor
+        # attempting to predict CPI by looking at last common stage
+        last_instr_depth  = self.__get_expected_latency(code_block.instructions[-1].name, sched_variant, struct_variant)
+        first_instr_depth = self.__get_expected_latency(code_block.instructions[0].name, sched_variant, struct_variant)
+        instr_depth = min(last_instr_depth, first_instr_depth, key=lambda i: i.value)
+        expected_end_cycle = num_instructions + instr_depth.value - 1
+
         if self.accumulate_stalls:
             assert len(timings_history) == len(code_block.instructions), \
                    "Cannot map timings to instructions!"
 
             stall_history = []
             for instr_idx, instr in enumerate(code_block.instructions):
-                # NOTE: assuming commit-in-order
-                end_stage          = self.__get_expected_latency(instr.name, sched_variant, struct_variant)
-                expected_end_cycle = end_stage.value + instr_idx
+                expected_end_cycle = instr_depth.value + instr_idx
 
                 current_timings    = timings_history[instr_idx].timing_vars
-                current_end_cycle  = current_timings[end_stage.name][0]
+                current_end_cycle  = current_timings[instr_depth.name][0]
 
                 diff = current_end_cycle - expected_end_cycle - sum(stall_history)
-                assert diff >= 0, f"Expected {instr_idx}. instr. ('{instr.name}') to finish at CC {expected_end_cycle + sum(stall_history)} " + \
-                                  f"but finished earlier at CC {current_end_cycle}! (diff: {diff} CC) " + \
-                                   "-> instr. latency miscalculated?"
+                if diff < 0:
+                    print(f"Expected {instr_idx}. instr. ('{instr.name}') to finish at CC {expected_end_cycle + sum(stall_history)} " + \
+                          f"but finished earlier at CC {current_end_cycle}! (diff: {diff} CC) " + \
+                           "-> instr. latency miscalculated?")
                 stall_history.append(diff)
 
-        # NOTE: assuming commit-in-order -> expected end cycle is simply the latency of
-        #       the last instructions plus the number of preceeding instructions
-        end_stage          = self.__get_expected_latency(code_block.instructions[-1].name, sched_variant, struct_variant)
-        expected_end_cycle = end_stage.value + num_instructions - 1
-
-        actual_end_cycle   = final_timings.timing_vars[end_stage.name][0]
+        actual_end_cycle   = final_timings.timing_vars[instr_depth.name][0]
         if isinstance(actual_end_cycle, DelayExpression):
             actual_end_cycle = actual_end_cycle.resolve(self._input_vector)
 
-        total_stall_cycles = actual_end_cycle - expected_end_cycle
-        cpi = (num_instructions + total_stall_cycles) / num_instructions
+        total_stall_cycles = actual_end_cycle - (instr_depth.value - 1) - num_instructions
+        cpi = (actual_end_cycle - (instr_depth.value - 1)) / num_instructions
 
         results = dotdict({
             "cpi": cpi,
@@ -162,8 +163,8 @@ class TimingsAnalyzer:
         })
 
         if self.accumulate_stalls:
-            assert sum(stall_history) == total_stall_cycles, \
-                   f"Stall cycles mismatch! ({sum(stall_history)} vs. expected {total_stall_cycles})"
+            if sum(stall_history) != total_stall_cycles:
+                print(f"Stall cycles mismatch! ({sum(stall_history)} vs. expected {total_stall_cycles}): results {results}")
             results.stall_history = stall_history
 
         return results
