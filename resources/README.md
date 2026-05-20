@@ -29,14 +29,14 @@ python3 normalize_choices.py out/embench_iot/crc32/20260423T075325/ -x -p -c -o=
 The CPI-analysis can then be executed using:
 
 ```bash
-BENCH=exports/crc32/20260423T075325/xisaac
+BENCH=exports/crc32/20260423T075325
 PYTHONPATH=<path-to-m2isar-perf>/m2isar_perf/ python3 ./main.py <path/to/dump_dir> --files $BENCH/xisaac/experiment.json --cores="*" --cpi --rank
 ```
 
 Symbolic analysis of all custom instructions:
 
 ```bash
-BENCH=exports/crc32/20260423T075325/xisaac
+BENCH=exports/crc32/20260423T075325
 PYTHONPATH=<path-to-m2isar-perf>/m2isar_perf/ python3 ./main.py <path/to/dump_dir> --files $BENCH/xisaac/experiment.json --cores="*V0" --cpi --rank --sym=CUSTOM
 ```
 
