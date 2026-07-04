@@ -1,0 +1,266 @@
+/*
+ * Copyright 2024 Chair of EDA, Technical University of Munich
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *	 http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*********************************** Microaction Section ***********************************/
+Connector {Pc, Pc_np, Pc_p}
+Connector {Xa, Xb, Xd}
+
+Resource {PCGen, Decoder, JumpDecoder, ALU, LSU, CSR}
+Resource {MUL, MULH(5)}
+Resource {DIV(divider), DIVU(divider_u)}
+Resource {IPort_R(iCacheModel), DPort_R(dCacheModel), DPort_W(dCacheModel)}
+
+// = XISAAC Resources =
+|V_RESOURCE_DEFS|
+
+|RESOURCE_INSTANCES|
+// --------------------
+
+Microaction {
+  uA_IFetch        (Pc -> IPort_R),
+  uA_PCGen         (Pc -> PCGen -> Pc_p),
+  uA_Decode        (Decoder),
+  uA_JumpDecode    (JumpDecoder -> Pc_np),
+  uA_JumpDecodeReg (Xa -> JumpDecoder -> Pc_np),
+  uA_OF_A          (Xa),
+  uA_OF_B          (Xb),
+  uA_ALU_RegUpdate (ALU -> Xd),
+  uA_ALU_Branch    (ALU -> Pc_np),
+  uA_CSR           (CSR -> Xd),
+  uA_LSU           (LSU),
+  uA_MUL           (MUL -> Xd),
+  uA_MULH          (MULH -> Xd),
+  uA_DIV           (DIV -> Xd),
+  uA_DIVU          (DIVU -> Xd),
+  uA_Memory_R      (DPort_R -> Xd),
+  uA_Memory_W      (DPort_W)
+}
+
+// = XISAAC Microactions =
+|V_MICRO_ACTION_DEFS|
+
+|MICRO_ACTION_INSTANCES|
+// -----------------------
+
+/************************************ Stages & Pipeline ************************************/
+
+|SUBSTAGE_DEFS|
+
+|PIPELINE_DEFS|
+
+Stage {
+  EX_substage_BASE (
+    uA_ALU_RegUpdate,
+    uA_ALU_Branch,
+    uA_CSR,
+    uA_LSU,
+    uA_MUL,
+    uA_MULH,
+    uA_DIV,
+    uA_DIVU
+  )
+}
+
+Pipeline {
+  EX_subpipe_BASE (EX_substage_BASE)
+}
+
+Stage {
+  IF_stage (uA_IFetch, uA_PCGen),
+  ID_stage (uA_Decode, uA_JumpDecode, uA_JumpDecodeReg, uA_OF_A, uA_OF_B),
+  EX_stage [capacity:2] (
+    //uA_ALU_RegUpdate,
+    //uA_ALU_Branch,
+    //uA_CSR,
+    //uA_LSU,
+    //uA_MUL,
+    //uA_MULH,
+    // = XISAAC EX stage =
+    |STAGE_DEFS|
+    // -------------------
+    //uA_DIV,
+    //uA_DIVU
+    EX_subpipe_BASE
+  ),
+  WB_stage (uA_Memory_R, uA_Memory_W)
+}
+
+Pipeline CV32E40PXISAAC_pipeline (IF_stage -> ID_stage -> EX_stage -> WB_stage)
+
+/************************************* External Models *************************************/
+TraceValue {rs1, rs2, rd, pc, brTarget, rs2_data}
+
+ConnectorModel regModel (
+  link : "models/common/StandardRegisterModel.h"
+  trace : {rs1, rs2, rd}
+  connectorIn : Xd
+  connectorOut : {Xa, Xb}
+)
+
+ConnectorModel staBranchPredModel (
+  link : "models/common/StaticBranchPredictModel.h"
+  trace : {pc, brTarget}
+  connectorIn : {Pc_np, Pc_p}
+  connectorOut : Pc
+)
+
+ConnectorModel perfectBranchPredModel (
+  link : "models/common/PerfectBranchPredictModel.h"
+  trace : {pc, brTarget}
+  connectorIn : {Pc_np, Pc_p}
+  connectorOut : Pc
+)
+
+ResourceModel divider (
+  link: "models/cv32e40p/DividerModel.h"
+  trace: rs2_data
+)
+
+ResourceModel divider_u (
+  link: "models/cv32e40p/DividerUnsignedModel.h"
+  trace: rs2_data
+)
+
+Model iCacheModel(
+  link : "models/cv32e40p/CustomICacheModel.h"
+  trace : {pc}
+)
+
+Model dCacheModel(
+  link : "models/cv32e40p/CustomDCacheModel.h"
+  trace : {addr}
+)
+
+/*********************************** Instruction Section ***********************************/
+InstrGroup {
+  Arith_Ra_Rb (add, sub, xor, or, and, slt, sltu, sll, srl, sra),
+  Arith_Ra (addi, xori, ori, andi, slti, sltiu, slli, srli, srai),
+  Arith_X (auipc, lui),
+  Mul_Ra_Rb (mul),
+  MulH_Ra_Rb (mulh, mulhu, mulhsu),
+  Div_Ra_Rb (div, rem),
+  DivU_Ra_Rb (divu, remu),
+  Csr_Ra (csrrw, csrrs, csrrc),
+  Csr_X (csrrwi, csrrsi, csrrci),
+  Store (sb, sh, sw),
+  Load (lw, lh, lhu, lb, lbu),
+  Branch_Ra_Rb (beq, bne, blt, bge, bltu, bgeu),
+  Default ([?])
+}
+
+// = XISAAC Instr Groups =
+|INSTR_GROUP_DEFS|
+// -----------------------
+
+MicroactionMapping {
+  [ALL] :        {uA_IFetch, uA_PCGen},
+  Arith_Ra_Rb :  {uA_Decode, uA_OF_A, uA_OF_B, uA_ALU_RegUpdate},
+  Arith_Ra :     {uA_Decode, uA_OF_A, uA_ALU_RegUpdate},
+  Arith_X :      {uA_Decode, uA_ALU_RegUpdate},
+  Mul_Ra_Rb :    {uA_Decode, uA_OF_A, uA_OF_B, uA_MUL},
+  MulH_Ra_Rb :   {uA_Decode, uA_OF_A, uA_OF_B, uA_MULH},
+  Div_Ra_Rb :    {uA_Decode, uA_OF_A, uA_OF_B, uA_DIV},
+  DivU_Ra_Rb :   {uA_Decode, uA_OF_A, uA_OF_B, uA_DIVU},
+  Csr_Ra :       {uA_Decode, uA_OF_A, uA_CSR},
+  Csr_X :        {uA_Decode, uA_CSR},
+  Store :        {uA_Decode, uA_OF_A, uA_OF_B, uA_LSU, uA_Memory_W},
+  Load :         {uA_Decode, uA_OF_A, uA_LSU, uA_Memory_R},
+  Branch_Ra_Rb : {uA_Decode, uA_OF_A, uA_OF_B, uA_ALU_Branch},
+  jal :          {uA_JumpDecode, uA_ALU_RegUpdate},
+  jalr :         {uA_JumpDecodeReg, uA_ALU_RegUpdate}
+}
+
+// = XISAAC Microaction Mapping =
+|MIRCO_ACTION_MAPPINGS|
+// ------------------------------
+
+
+TraceValueMapping {
+  [ALL] : {
+      pc = "$resolved{$pc}"
+  },
+  Arith_Ra_Rb : {
+    rs1 = "$bitfield{rs1}",
+    rs2 = "$bitfield{rs2}",
+    rd  = "$bitfield{rd}"
+  },
+  Arith_Ra : {
+    rs1 = "$bitfield{rs1}",
+    rd  = "$bitfield{rd}"
+  },
+  Arith_X : {
+    rd  = "$bitfield{rd}"
+  },
+  Mul_Ra_Rb : {
+    rs1 = "$bitfield{rs1}",
+    rs2 = "$bitfield{rs2}",
+    rd  = "$bitfield{rd}"
+  },
+  MulH_Ra_Rb : {
+    rs1 = "$bitfield{rs1}",
+    rs2 = "$bitfield{rs2}",
+    rd  = "$bitfield{rd}"
+  },
+  // = XISAAC Trace Value Mapping =
+  |TRACE_VALUE_MAPPINGS|
+  // ------------------------------
+  Div_Ra_Rb : {
+    rs1 = "$bitfield{rs1}",
+    rs2 = "$bitfield{rs2}",
+    rd  = "$bitfield{rd}",
+    rs2_data = "$reg{$bitfield{rs2}}"
+  },
+  DivU_Ra_Rb : {
+    rs1 = "$bitfield{rs1}",
+    rs2 = "$bitfield{rs2}",
+    rd  = "$bitfield{rd}",
+    rs2_data = "$reg{$bitfield{rs2}}"
+  },
+  Csr_Ra : {
+    rs1 = "$bitfield{rs1}",
+    rd  = "$bitfield{rd}"
+  },
+  Csr_X : {
+    rd  = "$bitfield{rd}"
+  },
+  Store : {
+    rs1 = "$bitfield{rs1}",
+    rs2 = "$bitfield{rs2}"
+  },
+  Load : {
+    rs1 = "$bitfield{rs1}",
+    rd  = "$bitfield{rd}"
+  },
+  Branch_Ra_Rb : {
+    rs1 = "$bitfield{rs1}",
+    rs2 = "$bitfield{rs2}",
+    brTarget = "$resolved{$pc + (((int16_t)($bitfield{imm} << 3)) >> 3)}"
+  },
+  jal : {
+    rd = "$bitfield{rd}",
+    brTarget = "$resolved{$pc + (((int32_t)($bitfield{imm} << 11)) >> 11)}"
+  },
+  jalr : {
+    rs1 = "$bitfield{rs1}",
+    rd  = "$bitfield{rd}",
+    brTarget = "($reg{$bitfield{rs1}} + $resolved{(((int16_t)($bitfield{imm} << 4)) >> 4)}) & -2U"
+  }
+}
+
+/**************************************** Variants *****************************************/
+
+|VARIANTS|
+// --------------------

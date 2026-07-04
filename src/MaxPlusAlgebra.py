@@ -523,11 +523,6 @@ class DelayExpression:
                 continue
             # contains variables that are not in other or that are of higher magnitude
             if not all((v.name in other.variables and v.delay <= other.count(v.name)) for v in candidate.variables):
-                # can reduce other by removing variables dominated by the candidate function
-                if candidate.constant == other.constant:
-                    for c in candidate.variables:
-                        if other.count(c.name) <= c.delay:
-                            other.remove(c.name)
                 continue
             # all variables dominated by other
             return None

@@ -274,7 +274,7 @@ class SequenceTransformer:
         if self.default_dynamic_delay is not None:
             return self.default_dynamic_delay
         # unmatched delay
-        raise RuntimeError(f"Unknown dynamic delay for node '{node.name}'!")
+        raise RuntimeError(f"Unknown dynamic delay for node '{node.name}' ({dynamic_delay_name})!", dynamic_vars)
 
     def __get_input_delays(self, 
                            node: Node, 

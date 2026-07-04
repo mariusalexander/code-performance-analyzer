@@ -46,6 +46,7 @@ def main():
     args_parser.add_argument("-p", "--print"      , action="store_true", help="Prints the results.")
     # TODO: keep? add more options?
     args_parser.add_argument("-b", "--print-bb"   , action="store_true", help="Prints the code_block.")
+    args_parser.add_argument("-n", "--num"        , nargs= 1, type=int, required=False, default=None, help="Number of variants.")
     # TODO: remove?
     args_parser.add_argument("--brpred"           , nargs=  1, type=str, default=None, help="...")
     args_parser.add_argument("--rank"             , action="store_true", help="Prints the rank/group of each result.")
@@ -134,6 +135,13 @@ def main():
     elif args.cpi:
         args_parser.error(f"Missing structural model for CPI analysis!")
 
+    if args.num is not None:
+        [args.num] = args.num
+        assert args.num > 0
+        schedule_model.variants = schedule_model.variants[:args.num]
+        struct_model.variants   = struct_model.variants[:args.num]
+
+
     symbolic_delay_vectors = {}
     if args.symbolic_analysis:
         if args.xisaac:
@@ -159,6 +167,11 @@ def main():
         if struct_model is not None:
             filter_variants(struct_model, args.cores, verbose=False)
 
+    if args.symbolic_analysis:
+        schedule_model.variants = [schedule_model.variants[0]]
+        struct_model.variants   = [struct_model.variants[0]]
+
+
     if len(schedule_model.variants) == 0:
         print(" > ERROR: No variants available!")
         exit(1)
@@ -172,7 +185,8 @@ def main():
     # load code blocks from file(s)
     if args.files:
         with Print.indent_scope(3):
-            code_blocks = InstructionBlockDescription.load_from_files(args.files, verbose=args.verbose)
+            with Profile("  > loading basic blocks"):
+                code_blocks = InstructionBlockDescription.load_from_files(args.files, verbose=args.verbose)
     # load example code blocks
     elif args.examples:
         import tests.TestVectors as Examples # lazy import

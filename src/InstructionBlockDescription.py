@@ -44,7 +44,7 @@ class InstructionDescription(dotdict):
 
     def is_valid(self):
         match self.name:
-            # pseudo instructions/instruction not fully implemented
+            # (pseudo) instructions not fully implemented in CorePerfDSL
             case "j" | "mret" | "call" | "ret" | "ecall" | "fence":
                 return False
         return True
@@ -107,7 +107,7 @@ class InstructionBlockDescription:
         for raw_instruction in raw_instructions:
             if len(raw_instruction.strip()) == 0:
                 continue
-            address = re.search(r"^0x[a-z0-9]{8}\s", raw_instruction)
+            address = re.search(r"^0x[a-z0-9]{8,16}\s", raw_instruction)
             if address:
                 address = int(address.group().strip(), 16)
                 if len(desc.instructions) == 0 and address_start == 0:
@@ -149,7 +149,7 @@ class InstructionBlockDescription:
             bbs = list(data)
             files   = [ path / bb["name"] for bb in bbs ]
             weights = { bb["name"] : bb["weight"] for bb in bbs }
-            variants = { bb["name"] : bb["dynamic_delays"] for bb in bbs if "dynamic_delays" in bb}
+            variants = { bb["name"] : bb["dynamic_delays"] for bb in bbs if "dynamic_delays" in bb and bb["dynamic_delays"] is not None }
             assert all(0 <= w <= 1 for w in weights.values())
 
         # parse files
@@ -172,7 +172,7 @@ class InstructionBlockDescription:
                         code_block_variant.weight      *= variant["weight"]
                         code_block_variant.dynamic_vars = variant["variables"]
                         assert code_block_variant.weight > 0
-                        append_code_block(code_block)
+                        append_code_block(code_block_variant)
                 else:
                     append_code_block(code_block)
         return code_blocks
