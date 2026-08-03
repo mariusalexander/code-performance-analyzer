@@ -29,17 +29,18 @@ The tool requires a patched [*M2-ISA-R-Perf*](https://github.com/mariusalexander
     $ pip install -r requirements.txt
     ```
 
-3. This tool depends on *M2-ISA-R-Perf*, which does not yet provide a Python package. To use this application, extend `PYTHONPATH` accordingly:
+3. This tool depends on *M2-ISA-R-Perf*, which does not yet provide a Python package. To use this application, use:
+
+    ```
+    $ source .env
+    ```
+
+    or alternatively extend the `PYTHONPATH` accordingly:
 
     ```
     $ PYTHONPATH=<path/to/M2-ISA-R-Perf/m2isar_perf> python3 main.py ...
     ```
 
-    or using the `.env` file:
-
-    ```
-    $ source .env
-    ```
 
 ## Usage
 
@@ -47,6 +48,11 @@ Make sure to activate the virtual Python environment before running this tool:
 
 ```
 $ source venv/bin/activate
+```
+
+Make sure to update the environment / update `PYTHONPATH`:
+
+```
 $ source .env
 ```
 
@@ -117,13 +123,13 @@ The directory `examples/` contains sample basic blocks extracted from embench ap
 1. Estimate the CPI using sequential analysis for `aha-mont64`, for the first variant only (V0):
 
     ```
-    $ python3 main.py examples/aha-mont64 --files examples/aha-mont64/exported/experiment.json --cpi --seq --cores="*V0" -p
+    $ python3 main.py examples/aha-mont64 --files examples/aha-mont64/exported/experiment.json --cpi --rank --seq --cores="*V0" -p
     ```
 
 2. Estimate the CPI using symbolic analysis for `aha-mont64`, for all custom instructions. Infer delays for symbolic variables from variants:
 
     ```
-    $ python3 main.py examples/aha-mont64 --files examples/aha-mont64/exported/experiment.json --cpi --sym CUSTOM --xisaac
+    $ python3 main.py examples/aha-mont64 --files examples/aha-mont64/exported/experiment.json --cpi --rank --sym CUSTOM --xisaac --rank 
     ```
 
 3. Estimate the CPI using symbolic analysis for `aha-mont64`, for all custom instructions. Use sample latencies for each symbolic variable (1, 2, 3):
@@ -137,27 +143,21 @@ The directory `examples/` contains sample basic blocks extracted from embench ap
 1. Estimate the CPI for all example code blocks:
 
     ```
-    $ python3 main.py <path/to/dump_dir> --examples="ex*" --cpi --rank
-    ```
-
-    e.g. using the 1. core variant of crc32
-
-    ```
-    $ python3 main.py examples/crc32 --cores=*V0 --examples="ex*" --cpi --rank
+    $ python3 main.py examples/simple_riscv --examples="ex*" --cpi --rank
     ```
 
 2. Interpret micro-actions as symbolic (here `ALU` and `MUL`):
 
     ```
-    $ python3 main.py <path/to/dump_dir> --examples="ex*" --cpi --rank --sym=ALU,MUL
+    $ python3 main.py examples/simple_riscv --examples="ex*" --cpi --rank --sym=ALU,MUL
     ```
 
-    e.g. using the 1. core variant of crc32
+3. Visualize the basic block scheduling function of a basic block:
 
     ```
-    $ python3 main.py examples/crc32 --cores=*V0 --examples="ex*" --cpi --rank --sym=ALU,MUL
+    $ python3 main.py examples/simple_riscv --examples="ex_adds" --schedule-graph
     ```
 
 ### Additonal Resources
 
-See [resources/README.md](resources/README.md) for more information regarding additional resources.
+See [resources](resources) for more information regarding additional resources that are part of this repository.

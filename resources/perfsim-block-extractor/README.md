@@ -6,6 +6,8 @@ Adapted performance simulator backend. Gathers the basic blocks and how often ea
 
 Must be installed to [`SoftwareEval-Backends/include/internal`](https://github.com/tum-ei-eda/SoftwareEval-Backends/tree/main/include/internal).
 
+> **Note:** Currently only supports CV32 variants
+
 > **Note:** Must be incorporated into the factory ([`SoftwareEval-Backends/src/api/Factory.cpp`](https://github.com/tum-ei-eda/SoftwareEval-Backends/tree/main/src/api/Factory.cpp)), similar to how performance models for different code-variants are setup.
 
 ### [BlockExtractor.cpp](BlockExtractor.cpp)

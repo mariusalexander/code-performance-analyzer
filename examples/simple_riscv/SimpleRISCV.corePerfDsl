@@ -1,0 +1,321 @@
+/*
+ * Copyright 2024 Chair of EDA, Technical University of Munich
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *	 http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*********************************** Microaction Section ***********************************/
+Connector {Pc, Pc_np, Pc_p}
+Connector {Xa, Xb, Xd}
+
+Resource {PCGen, Decoder, ALU, Reg}
+Resource {MUL(3), MULH(6)}
+Resource {DIV(12), DIVU(12)}
+// disabled dynamic mem delays
+Resource {DPort_W(1), DPort_R(1), IPort_R(1)}
+Resource {MEM_Bypass(1), WB_Bypass(1)}
+
+// General Microactions
+Microaction {
+    uA_IF (Pc -> IPort_R),
+    uA_PCGEN (Pc -> PCGen -> Pc_p),
+    uA_ID (Decoder),
+    uA_ID_JUMP (Decoder -> Pc_np),
+    uA_ID_JUMP_REG (Xa -> Decoder -> Pc_np),
+    uA_OF_A (Xa),
+    uA_OF_B (Xb),
+    uA_ALU_branch (ALU -> Pc_np),
+    uA_ALU_mem (ALU),
+    uA_MEM_W (DPort_W),
+    uA_MEM_Bypass (MEM_Bypass),
+    uA_WB_Bypass (WB_Bypass)
+}
+
+// Non-forwarding Microactions
+Microaction {
+    uA_ALU_arith_nfw (ALU),
+    uA_MUL_nfw (MUL),
+    uA_MULH_nfw (MULH),
+    uA_DIV_nfw (DIV),
+    uA_DIVU_nfw (DIVU),
+    uA_MEM_R_nfw (DPort_R),
+    uA_WB_nfw (Reg -> Xd)
+}
+
+// Forwarding Microactions
+Microaction {
+    uA_ALU_arith_fw (ALU -> Xd),
+    uA_MUL_fw (MUL -> Xd),
+    uA_MULH_fw (MULH -> Xd),
+    uA_DIV_fw (DIV -> Xd),
+    uA_DIVU_fw (DIVU -> Xd),
+    uA_MEM_R_fw (DPort_R -> Xd),
+    uA_WB_fw (Reg)
+}
+
+// Virtual Microactions (to select between forwarding and non-forwarding)
+virtual Microaction {
+    vuA_ALU_arith,
+    vuA_MUL,
+    vuA_MULH,
+    vuA_DIV,
+    vuA_DIVU,
+    vuA_MEM_R,
+    vuA_WB
+}
+
+/*********************************** Stages & Pipeline ***********************************/
+Stage {
+    IF_stage (uA_IF, uA_PCGEN),
+    ID_stage (uA_ID, uA_ID_JUMP, uA_ID_JUMP_REG, uA_OF_A, uA_OF_B),
+    EX_stage (vuA_ALU_arith, uA_ALU_branch, uA_ALU_mem, vuA_MUL, vuA_MULH, vuA_DIV, vuA_DIVU),
+    MEM_stage (vuA_MEM_R, uA_MEM_W, uA_MEM_Bypass),
+    WB_stage (vuA_WB, uA_WB_Bypass)
+}
+Pipeline SimplePipeline (IF_stage -> ID_stage -> EX_stage -> MEM_stage -> WB_stage)
+
+/*********************************** External Models ***********************************/
+TraceValue {rs1, rs2, rd, pc, brTarget}
+
+ConnectorModel regModel (
+    link : "models/common/StandardRegisterModel.h"
+    trace : {rs1, rs2, rd}
+    connectorIn : Xd
+    connectorOut : {Xa, Xb}
+)
+
+ConnectorModel dynBranchPredModel (
+    link : "models/common/DynamicBranchPredictModel.h"
+    trace : {pc, brTarget}
+    connectorIn : {Pc_p, Pc_np}
+    connectorOut : Pc
+)
+
+ConnectorModel staBranchPredModel (
+    link : "models/common/StaticBranchPredictModel.h"
+    trace : {pc, brTarget}
+    connectorIn : {Pc_p, Pc_np}
+    connectorOut : Pc
+)
+
+ConnectorModel noBranchPredModel (
+    link : "models/common/NoBranchPredictModel.h"
+    connectorIn : {Pc_p, Pc_np}
+    connectorOut : Pc
+)
+
+ResourceModel iMemModel (
+    link : "models/common/DummyMemoryModel.h"
+)
+
+ResourceModel dMemModel (
+    link : "models/common/DummyMemoryModel.h"
+)
+
+/*********************************** Instruction Section ***********************************/
+InstrGroup {
+    Arith_Ra_Rb (add, sub, xor, or, and, slt, sltu, sll, srl, sra),
+    Arith_Ra (addi, xori, ori, andi, slti, sltiu, slli, srli, srai),
+    Arith_X (auipc, lui),
+    Mul_Ra_Rb (mul),
+    MulH_Ra_Rb (mulh, mulhu, mulhsu),
+    Div_Ra_Rb (div, rem),
+    DivU_Ra_Rb (divu, remu),
+    Csr_Ra (csrrw, csrrs, csrrc), // adopted from CV32, no dedicated CSR Resource
+    Csr_X (csrrwi, csrrsi, csrrci),
+    Store (sb, sh, sw),
+    Load (lw, lh, lhu, lb, lbu),
+    Branch_Ra_Rb (beq, bne, blt, bge, bltu, bgeu),
+    Default ([?])
+}
+
+MicroactionMapping {
+    [ALL] :         {uA_IF, uA_PCGEN},
+    Arith_Ra_Rb :   {uA_ID, uA_OF_A, uA_OF_B, vuA_ALU_arith, uA_MEM_Bypass, vuA_WB},
+    Arith_Ra :      {uA_ID, uA_OF_A,          vuA_ALU_arith, uA_MEM_Bypass, vuA_WB},
+    Arith_X :       {uA_ID,                   vuA_ALU_arith, uA_MEM_Bypass, vuA_WB},
+    Csr_Ra :        {uA_ID, uA_OF_A,          vuA_ALU_arith, uA_MEM_Bypass, vuA_WB},
+    Csr_X :         {uA_ID,                   vuA_ALU_arith, uA_MEM_Bypass, vuA_WB},
+    Mul_Ra_Rb :     {uA_ID, uA_OF_A, uA_OF_B, vuA_MUL,       uA_MEM_Bypass, vuA_WB},
+    MulH_Ra_Rb :    {uA_ID, uA_OF_A, uA_OF_B, vuA_MULH,      uA_MEM_Bypass, vuA_WB},
+    Div_Ra_Rb :     {uA_ID, uA_OF_A, uA_OF_B, vuA_DIV,       uA_MEM_Bypass, vuA_WB},
+    DivU_Ra_Rb :    {uA_ID, uA_OF_A, uA_OF_B, vuA_DIVU,      uA_MEM_Bypass, vuA_WB},
+    Store :         {uA_ID, uA_OF_A, uA_OF_B, uA_ALU_mem,    uA_MEM_W,      uA_WB_Bypass},
+    Load :          {uA_ID, uA_OF_A,          uA_ALU_mem,    vuA_MEM_R,     vuA_WB},
+    Branch_Ra_Rb :  {uA_ID, uA_OF_A, uA_OF_B, uA_ALU_branch},
+    jal :           {                  uA_ID_JUMP},
+    jalr :          {uA_OF_A,          uA_ID_JUMP_REG}
+}
+
+TraceValueMapping {
+    [ALL] : {
+        pc = "$resolved{$pc}"
+    },
+    Arith_Ra_Rb : {
+        rs1 = "$bitfield{rs1}",
+        rs2 = "$bitfield{rs2}",
+        rd  = "$bitfield{rd}"
+    },
+    Arith_Ra : {
+        rs1 = "$bitfield{rs1}",
+        rd  = "$bitfield{rd}"
+    },
+    Arith_X : {
+        rd  = "$bitfield{rd}"
+    },
+    Csr_Ra : {
+        rs1 = "$bitfield{rs1}",
+        rd  = "$bitfield{rd}"
+    },
+    Csr_X : {
+        rd  = "$bitfield{rd}"
+    },
+    Mul_Ra_Rb : {
+        rs1 = "$bitfield{rs1}",
+        rs2 = "$bitfield{rs2}",
+        rd  = "$bitfield{rd}"
+    },
+    MulH_Ra_Rb : {
+        rs1 = "$bitfield{rs1}",
+        rs2 = "$bitfield{rs2}",
+        rd  = "$bitfield{rd}"
+    },
+    Div_Ra_Rb : {
+        rs1 = "$bitfield{rs1}",
+        rs2 = "$bitfield{rs2}",
+        rd  = "$bitfield{rd}"
+    },
+    DivU_Ra_Rb : {
+        rs1 = "$bitfield{rs1}",
+        rs2 = "$bitfield{rs2}",
+        rd  = "$bitfield{rd}"
+    },
+    Store : {
+        rs1 = "$bitfield{rs1}",
+        rs2 = "$bitfield{rs2}"
+    },
+    Load : {
+        rs1 = "$bitfield{rs1}",
+        rd  = "$bitfield{rd}"
+    },
+    Branch_Ra_Rb : {
+        rs1 = "$bitfield{rs1}",
+	    rs2 = "$bitfield{rs2}",
+	    brTarget = "$resolved{$pc + (((int16_t)($bitfield{imm} << 3)) >> 3)}"
+   },
+   jal : {
+        rd = "$bitfield{rd}",
+	    brTarget = "$resolved{$pc + (((int32_t)($bitfield{imm} << 11)) >> 11)}"
+   },
+   jalr : {
+        rs1 = "$bitfield{rs1}",
+        rd = "$bitfield{rd}",
+	    brTarget = "($resolved{$pc + (((int16_t)($bitfield{imm} << 4)) >> 4)}) & -2U"
+   }
+}
+
+/*********************************** Variants ***********************************/
+
+// With forwarding
+
+CorePerfModel SimpleRISCV_H_fw_NoBrPred (
+    core : "RV32IMACFD"
+    use Pipeline : SimplePipeline
+    use ConnectorModel : {noBranchPredModel, regModel}
+    assign Microaction : {
+        vuA_ALU_arith = uA_ALU_arith_fw,
+        vuA_MUL = uA_MUL_fw,
+        vuA_MULH = uA_MULH_fw,
+        vuA_DIV = uA_DIV_fw,
+        vuA_DIVU = uA_DIVU_fw,
+        vuA_MEM_R = uA_MEM_R_fw,
+        vuA_WB = uA_WB_fw
+    }
+)
+
+CorePerfModel SimpleRISCV_H_fw_StaBrPred (
+    core : "RV32IMACFD"
+    use Pipeline : SimplePipeline
+    use ConnectorModel : {staBranchPredModel, regModel}
+    assign Microaction : {
+        vuA_ALU_arith = uA_ALU_arith_fw,
+        vuA_MUL = uA_MUL_fw,
+        vuA_MULH = uA_MULH_fw,
+        vuA_DIV = uA_DIV_fw,
+        vuA_DIVU = uA_DIVU_fw,
+        vuA_MEM_R = uA_MEM_R_fw,
+        vuA_WB = uA_WB_fw
+    }
+)
+
+CorePerfModel SimpleRISCV_H_fw_DynBrPred (
+    core : "RV32IMACFD"
+    use Pipeline : SimplePipeline
+    use ConnectorModel : {dynBranchPredModel, regModel}
+    assign Microaction : {
+        vuA_ALU_arith = uA_ALU_arith_fw,
+        vuA_MUL = uA_MUL_fw,
+        vuA_MULH = uA_MULH_fw,
+        vuA_DIV = uA_DIV_fw,
+        vuA_DIVU = uA_DIVU_fw,
+        vuA_MEM_R = uA_MEM_R_fw,
+        vuA_WB = uA_WB_fw
+    }
+)
+
+// Without forwarding
+
+CorePerfModel SimpleRISCV_H_nfw_NoBrPred (
+    core : "RV32IMACFD"
+    use Pipeline : SimplePipeline
+    use ConnectorModel : {noBranchPredModel, regModel}
+    assign Microaction : {
+        vuA_ALU_arith = uA_ALU_arith_nfw,
+        vuA_MUL = uA_MUL_nfw,
+        vuA_MULH = uA_MULH_nfw,
+        vuA_DIV = uA_DIV_nfw,
+        vuA_DIVU = uA_DIVU_nfw,
+        vuA_MEM_R = uA_MEM_R_nfw,
+        vuA_WB = uA_WB_nfw
+    }
+)
+
+CorePerfModel SimpleRISCV_H_nfw_StaBrPred (
+    core : "RV32IMACFD"
+    use Pipeline : SimplePipeline
+    use ConnectorModel : {staBranchPredModel, regModel}
+    assign Microaction : {
+        vuA_ALU_arith = uA_ALU_arith_nfw,
+        vuA_MUL = uA_MUL_nfw,
+        vuA_MULH = uA_MULH_nfw,
+        vuA_DIV = uA_DIV_nfw,
+        vuA_DIVU = uA_DIVU_nfw,
+        vuA_MEM_R = uA_MEM_R_nfw,
+        vuA_WB = uA_WB_nfw
+    }
+)
+
+CorePerfModel SimpleRISCV_H_nfw_DynBrPred (
+    core : "RV32IMACFD"
+    use Pipeline : SimplePipeline
+    use ConnectorModel : {dynBranchPredModel, regModel}
+    assign Microaction : {
+        vuA_ALU_arith = uA_ALU_arith_nfw,
+        vuA_MUL = uA_MUL_nfw,
+        vuA_MULH = uA_MULH_nfw,
+        vuA_DIV = uA_DIV_nfw,
+        vuA_DIVU = uA_DIVU_nfw,
+        vuA_MEM_R = uA_MEM_R_nfw,
+        vuA_WB = uA_WB_nfw
+    }
+)
