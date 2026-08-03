@@ -16,20 +16,26 @@ The approach is based on the [*Performance Estimator* (for ETISS)](https://githu
 
 The tool requires a patched [*M2-ISA-R-Perf*](https://github.com/mariusalexander/M2-ISA-R-Perf/tree/implement-block-scheduling-model), that allow exporting the structural and schedule model as pickle files.
 
-1. Create a virtual Python environment and activate it:
+1. Initialize the submodules:
+
+    ```
+    $ git submodule update --init --recursive
+    ```
+
+2. Create a virtual Python environment and activate it:
 
     ```
     $ python3 -m venv venv
     $ source venv/bin/activate
     ```
 
-2. Install the Python dependencies:
+3. Install the Python dependencies:
 
     ```
     $ pip install -r requirements.txt
     ```
 
-3. This tool depends on *M2-ISA-R-Perf*, which does not yet provide a Python package. To use this application, use:
+4. This tool depends on *M2-ISA-R-Perf*, which does not yet provide a Python package. To use this application, use:
 
     ```
     $ source .env
