@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 from src.Common import Profile
+
 with Profile("import"):
     import pathlib
     import argparse
@@ -31,57 +32,49 @@ def main():
     def valid_path(path):
         return pathlib.Path(path).resolve()
 
-    # path to folder
-    dirname = pathlib.Path(__file__).resolve().parent / "out"
+    # path to output folder
+    output_dirname = pathlib.Path(__file__).resolve().parent / "out"
 
-    ### parse arguments
-    args_parser = argparse.ArgumentParser()
-    # models
-    args_parser.add_argument("schedule_model"     , help="Path to the schedule model pickle file.")
-    args_parser.add_argument("struct_model"       , nargs='?', help="Path to the structure model pickle file. Required for delay analysis.")
+    ############################# parse arguments #############################
+    parser = argparse.ArgumentParser()
+    # input models
+    parser.add_argument("schedule_model"     , help="Path to the schedule model pickle file.")
+    parser.add_argument("struct_model"       , nargs='?', help="Path to the structure model pickle file. Required for delay analysis.")
     # options
-    args_parser.add_argument("-o", "--out-dir"    , type=valid_path, default=dirname, help="Directory to store generated files.")
-    args_parser.add_argument("--cores"            , type=str, help="Filters out any core variants that do not match the given Wildcard pattern.")
-    args_parser.add_argument("-v", "--verbose"    , action="store_true", help="Enables verbose output.")
-    args_parser.add_argument("-p", "--print"      , action="store_true", help="Prints the results.")
-    # TODO: keep? add more options?
-    args_parser.add_argument("-b", "--print-bb"   , action="store_true", help="Prints the code_block.")
-    args_parser.add_argument("-n", "--num"        , nargs= 1, type=int, required=False, default=None, help="Number of variants.")
-    # TODO: remove?
-    args_parser.add_argument("--brpred"           , nargs=  1, type=str, default=None, help="...")
-    args_parser.add_argument("--rank"             , action="store_true", help="Prints the rank/group of each result.")
-    # inputs
-    args_parser.add_argument("--tests"            , action="store_true", help="Executes all unittests.")
-    args_parser.add_argument("--examples"         , nargs='?', type=str, const='*', help="Loads example basic blocks. A Wildcard pattern can be used to load only certain tests.")
-    args_parser.add_argument("--files"            , nargs='+', type=valid_path, const=None, help="Parses code blocks from disk. Multiple input files can be specified.")
-
-    args_parser.add_argument("-d", "--default-dynamic-delay", nargs=  1, type=int, default=[None], help="Sets a default value for dynamic delays.")
+    parser.add_argument("-v", "--verbose"    , action="store_true", help="Enables verbose output.")
+    parser.add_argument("-p", "--print"      , action="store_true", help="Prints the resulting timings for each basic block and each variant.")
+    parser.add_argument("-P", "--print-bb"   , action="store_true", help="Prints the basic blocks used.")
+    parser.add_argument("-n", "--num"        , nargs= 1, type=int, required=False, default=None, help="Only analyses the first `n` variants.")
+    parser.add_argument("-d", "--default-dynamic-delay", nargs=1, type=int, default=[None], help="Sets a default value for all dynamic delays.", metavar="DELAY")
+    parser.add_argument("--rank"             , action="store_true", help="Prints the rank/group of each predicted CPI.")    
+    parser.add_argument("--cores"            , type=str, help="Filters out any variant that does not match the given Wildcard pattern.", metavar="WILDCARD")
+    parser.add_argument("--export"           , nargs= 1, type=valid_path, default=[None], help="Exports the results to the given path.", metavar="EXPORT_DIR")
+    parser.add_argument("--export-suffix"    , nargs= 1, type=str, default=[None], help="Optional suffix for result filenames.")
+    # input basic blocks
+    parser.add_argument("--examples"         , nargs='?', type=str, const='*', help="Loads example basic blocks. A Wildcard pattern can be used to load only certain examples.", metavar="WILDCARD")
+    parser.add_argument("--files"            , nargs='+', type=valid_path, const=None, help="Parses code blocks from disk. Multiple input files can be specified.")
     # targets
-    args_parser.add_argument("--sequence-analysis", action="store_true", help="Determine CPI of basic blocks by sequentially evaluating the timing model for each instruction.")
-    args_parser.add_argument("--symbolic-analysis", nargs=  1, type=str, default=[""],
-                                                    help="Comma separated list of keywords to find nodes whose delay should be made symbolic. " +\
-                                                         "Initiates symbolic sequenced timing analysis.")
-    args_parser.add_argument("--cpi"              , action="store_true", help="Estimates the CPI for each instruction block. Prints to stdout.")
-    # TODO: generalize?
-    args_parser.add_argument("--xisaac"           , action="store_true", help="")
-    args_parser.add_argument("--export"           , nargs=  1, type=valid_path, default=[None], help="Exports the results to the given path")
-    args_parser.add_argument("--export-suffix"    , nargs=  1, type=str, default=[None], help="Optional suffix for exported results.")
+    parser.add_argument("--sequence-analysis", action="store_true", help="Evaluates the timing model sequentially for each instruction in a basic blocks to determine the CPI.")
+    parser.add_argument("--symbolic-analysis", nargs= 1, type=str, default=[""],
+                                               help="Comma separated list of keywords, which are used to match scheudling nodes whose delay should be made symbolic. " + \
+                                                    "Initiates symbolic sequenced timing analysis.", metavar="OP1,OP2,OP3")
+    parser.add_argument("--cpi"              , action="store_true", help="Predicts the CPI for each instruction block. Prints to stdout.")
+    parser.add_argument("--xisaac"           , action="store_true", help="Extract delays for the symbolic variables from the variants directly (Only works with XISAAC variants generated by GenIE).")
+    # other targes
+    parser.add_argument("--block-schedule"   , action="store_true", help="Generates scheduling functions for each code block.")
+    parser.add_argument("--schedule-graph"   , action="store_true", help="Generates scheduling functions graphs for the generated block scheduling functions.")
 
-    args_parser.add_argument("--block-schedule"   , action="store_true", help="Generates a scheduling function for the given code blocks.")
-    args_parser.add_argument("--schedule-graph"   , action="store_true", help="Generates scheduling functions graphs for the generated instruction block schedules. " + \
-                                                                              "(writes to `out-dir`, uses M2-ISA-R-Perf internally)")
+    args = parser.parse_args()
 
-    args = args_parser.parse_args()
+    ############################# initializations #############################
+    
+    # if isinstance(args.out_dir, list):
+    #     [args.out_dir] = args.out_dir
 
-    if isinstance(args.out_dir, list):
-        [args.out_dir] = args.out_dir
-
-    ### initializations ###
     print("-- INITIALIZING --")
     print(" > Arguments:\n  >" + ",\n  > ".join(f"'{f}': {args.__getattribute__(f)}" for f in vars(args)))
 
-    # parse arguments
-
+    # transform arguments
     [args.default_dynamic_delay] = args.default_dynamic_delay
     [args.export_suffix]  = args.export_suffix
     [args.export]         = args.export
@@ -89,39 +82,32 @@ def main():
     symbolic_names = list(filter(lambda arg: len(arg) > 0, (arg.strip() for arg in args.symbolic_analysis[0].split(","))))
     args.symbolic_analysis = len(symbolic_names)
 
-    # corePerfDsl models
+    # find CorePerfDSL models
     schedule_model = struct_model = None
     model_path = pathlib.Path(args.schedule_model).resolve()
     if model_path.is_dir():
         print(" > Attemping to load default models...")
         if args.struct_model:
-            args_parser.error(f"Loading default models would ignore '--struct-model' argument, aborting!")
+            parser.error(f"Loading default models would ignore '--struct-model' argument, aborting!")
         args.schedule_model = model_path / "schedule.model"
         args.struct_model   = model_path / "frontend.model"
     elif not model_path.is_file():
-        args_parser.error(f"Invalid path to schedule model!")
+        parser.error(f"Invalid path to schedule model!")
     elif not args.schedule_model.endswith(".model"):
-        args_parser.error(f"Expected model file to end with '.model'!")
+        parser.error(f"Expected model file to end with '.model'!")
 
     if args.schedule_graph and not args.block_schedule:
         args.block_schedule = True
 
-    if sum(bool(arg) for arg in (args.files, args.tests, args.examples)) > 1:
-        args_parser.error(f"Conflicting arguments: either use --files, --examples, or --tests!")
+    if sum(bool(arg) for arg in (args.files, args.examples)) > 1:
+        parser.error(f"Conflicting arguments: either use --files or --examples!")
     if sum(bool(arg) for arg in (args.sequence_analysis, args.symbolic_analysis, args.block_schedule)) > 1:
-        args_parser.error(f"Conflicting arguments: either use --sequence-analysis, --symbolic-names, or --block-schedule!")
+        parser.error(f"Conflicting arguments: either use --sequence-analysis, --symbolic-names, or --block-schedule!")
+
     if args.cpi and not symbolic_names:
         args.sequence_analysis = True
 
-    if args.brpred:
-        [args.brpred] = args.brpred
-        match args.brpred:
-            case "sta_never_taken":
-                pass
-            case _:
-                args_parser.error(f"Unknown branch prediction option!")
-
-    # load pickle files
+    ############################ load pickle files ############################
     with open(args.schedule_model, 'rb') as file:
         print(" > loading schedule model...")
         with Profile("  > unpickling schedule model"):
@@ -133,24 +119,28 @@ def main():
             with Profile("  > unpickling struct model"):
                 struct_model = pickle.load(file)
     elif args.cpi:
-        args_parser.error(f"Missing structural model for CPI analysis!")
+        parser.error(f"Missing structural model for CPI analysis!")
 
+    # only load first n models
     if args.num is not None:
         [args.num] = args.num
         assert args.num > 0
         schedule_model.variants = schedule_model.variants[:args.num]
         struct_model.variants   = struct_model.variants[:args.num]
 
-
+    ################################## setup ##################################
     symbolic_delay_vectors = {}
     if args.symbolic_analysis:
+        # extract symbolic delays from variants
         if args.xisaac:
             for variant in struct_model.getAllVariants():
                 pipeline = variant.getPipeline()
                 mirco_ops = pipeline.getAllMicroactions()
                 resources = (res for op in mirco_ops for res in op.getResources())
                 resources = (res for res in resources for var in symbolic_names if var in res.name)
+                # NOTE: hardcoded V0 variant here, may use any other variant
                 symbolic_delay_vectors[variant.name] = { f"V0{r.name[r.name.index('_'):]}": r.delay for r in resources }
+        # generate sample symbolic delays from variants
         else:
             variant  = struct_model.getAllVariants()[0]
             pipeline = variant.getPipeline()
@@ -171,16 +161,13 @@ def main():
         schedule_model.variants = [schedule_model.variants[0]]
         struct_model.variants   = [struct_model.variants[0]]
 
-
     if len(schedule_model.variants) == 0:
         print(" > ERROR: No variants available!")
         exit(1)
 
-    ### extract instruction blocks ###
 
-    # generate block and delay models
+    ############################ load basic blocks ############################
     code_blocks = []
-    block_schedule = delay_model = None
 
     # load code blocks from file(s)
     if args.files:
@@ -191,36 +178,37 @@ def main():
     elif args.examples:
         import tests.TestVectors as Examples # lazy import
         code_blocks = Examples.test_vectors(pattern=args.examples)
-    # run unittests
-    elif args.tests:
-        import tests.UnitTests as UnitTests # lazy import
-        success = UnitTests.run()
-        exit(success)
 
     if len(code_blocks) == 0:
-        print(" > ERROR: No code blocks to generate schedule models!")
+        print(" > ERROR: No code blocks to generate schedule models! Use `--examples` or `--files` to load code blocks!")
         exit(1)
 
-    ### Backends ###
 
-    # generate block scheduling functions
+    ###################### block scheduling functions #########################
+    # NOTE: This was the initial approach of creating a "block scheduling function". 
+    #       I left it in, but it can no longer be used for the analysis, only for visualisations
     if args.block_schedule:
         from src.BlockSchedulingTransformer import BlockSchedulingTransformer # lazy import
 
         block_schedule = BlockSchedulingTransformer(verbose=args.verbose,
                                                     rename_edges=args.schedule_graph) \
-            .transform(schedule_model, code_blocks, brpred_option=args.brpred)
+            .transform(schedule_model, code_blocks)
 
         # render block schedules
         if args.schedule_graph:
             from backends.schedule_viewer.SchedulingModelViewer import SchedulingModelViewer # lazy import
 
-            SchedulingModelViewer() \
-                .execute(block_schedule, args.out_dir, alternate_color=True, show_delays=True)
+            outdir = args.export
+            if not isinstance(args.export, pathlib.Path):
+                outdir = pathlib.Path(output_dirname).resolve()
 
-    # timing analysis
+            SchedulingModelViewer() \
+                .execute(block_schedule, outdir, alternate_color=True, show_delays=True)
+
+    ############################ delay analysis ###############################
+    # exit early
     if not args.sequence_analysis and not args.symbolic_analysis:
-        print(" > WARNING: nothing to do!")
+        print(" > WARNING: nothing to do! Use `--cpi`, `--sequence-analysis`, or `--symbolic-analysis`!")
         exit(0)
 
     sequence_model = SequenceTransformer(verbose=args.verbose,
@@ -234,24 +222,23 @@ def main():
         exit(0)
 
     results = None
-
     # sequence timing analysis
     if args.sequence_analysis:
         results = TimingsAnalyzer(print_history=args.print,
                                   print_code_blocks=args.print_bb,
-                                  accumulate_stalls=args.print,
-                                  assume_same_pipeline=args.xisaac) \
+                                  accumulate_stalls=args.print) \
             .estimate_cpi(sequence_model, schedule_model, struct_model)
 
     # symbolic timing analysis
     elif args.symbolic_analysis:
         results = TimingsAnalyzer(print_history=args.print,
                                   print_code_blocks=args.print_bb,
-                                  accumulate_stalls=False, # not supported yet
-                                  assume_same_pipeline=args.xisaac) \
+                                  accumulate_stalls=False # not supported yet
+                                  ) \
             .solve_symbolic_delay_for_cpi(sequence_model, schedule_model, struct_model, symbolic_delay_vectors)
 
-    ### Post Processing ###
+    ############################ post processing #############################
+    # exit early
     if not results:
         exit(0)
 
@@ -261,9 +248,9 @@ def main():
 
         for variant_name in results:
             blocks = results[variant_name]
-            with open(args.cpi / f"{variant_name}_{args.export_suffix + "_" if args.export_suffix else ""}results.json", "w") as f:
+            args.export.mkdir(parents=True, exist_ok=True)
+            with open(args.export / f"{variant_name}_{args.export_suffix + "_" if args.export_suffix else ""}results.json", "w") as f:
                 f.write(json.dumps(blocks, indent=4))
-
 
     # print total CPI if possible
     final_results = {}
@@ -278,7 +265,6 @@ def main():
             "total_cpi": sum((bb.cpi * bb.weight / total_weight) for bb in blocks.values()),
             "total_weight": total_weight
         })
-
 
     if final_results:
         # NOTE: rounding cpi to avoid generating multiple ranks for slight variations in CPI due to weighting

@@ -16,11 +16,9 @@ from meta_models.structural_model.StructuralModel import Variant as StructuralMo
 class TimingsAnalyzer:
 
     def __init__(self,
-                 assume_same_pipeline=False,
                  print_history=False,
                  accumulate_stalls=False,
                  print_code_blocks=False):
-        self.assume_same_pipeline   = assume_same_pipeline
         self.print_history          = print_history
         self.print_code_blocks      = print_code_blocks
         self.accumulate_stalls      = accumulate_stalls
@@ -32,13 +30,13 @@ class TimingsAnalyzer:
                      schedule_model: SchedulingModel, 
                      struct_model: StructuralModel):
         print("\n-- FRONTEND: TIMING ANALYSIS --")
-
+        assume_same_pipeline = False
         sched_variant = struct_variant = None
         results = {}
         print(" > performing timing analysis...")
         with Profile(" > performing entire timing analysis"):
             for sequence_variant in sequence_model.variants:
-                if not self.assume_same_pipeline or not sched_variant:
+                if not assume_same_pipeline or not sched_variant:
                     sched_variant  = find_variant(schedule_model, sequence_variant.name)
                     struct_variant = find_variant(struct_model, sequence_variant.name)
                     self.instr2latencies = {}
@@ -124,10 +122,8 @@ class TimingsAnalyzer:
         num_instructions = len(code_block.instructions)
 
         # NOTE: assuming single issue and in-order processor
-        # attempting to predict CPI by looking at last common stage
-        last_instr_depth  = self.__get_expected_latency(code_block.instructions[-1].name, sched_variant, struct_variant)
-        first_instr_depth = self.__get_expected_latency(code_block.instructions[0].name, sched_variant, struct_variant)
-        instr_depth = min(last_instr_depth, first_instr_depth, key=lambda i: i.value)
+        # NOTE: assuming previous instruction was a branch instruction -> ignore cycles that overlap with branch instruction 
+        instr_depth = self.__get_expected_latency("bne", sched_variant, struct_variant)
         expected_end_cycle = num_instructions + instr_depth.value - 1
 
         if self.accumulate_stalls:

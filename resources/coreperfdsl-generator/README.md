@@ -1,6 +1,6 @@
 # coreperfdsl-generator
 
-### `generate_core_perf_dsl.py`
+### [generate_core_perf_dsl.py](generate_core_perf_dsl.py)
 
 Generates CorePerfDSL files for a CV32E40P, similar to what the GenIE/XISAAC workflow generates. Each custom instruction is implemented using an I, X, and O stage.
 
@@ -65,18 +65,18 @@ EXPERIMENT=out/embench_iot/crc32/20260423T075325/
 python3 generate_core_perf_dsl.py -ev $EXPERIMENT --branch-pred-model=dynBranchPredModel --suffix=crc32_dyn -O CV32E40P_CRC32_dyn -p
 ```
 
-### `CV32E40PXISAAC.template`
+### [CV32E40PXISAAC.template](CV32E40PXISAAC.template)
 
 Template .corePerfDSL file for a CV32E40P emplyoing **only** static delays.
 
-### `CV32E40PXISAAC_dynamic_resources.template`
+### [CV32E40PXISAAC_dynamic_resources.template](CV32E40PXISAAC_dynamic_resources.template)
 
 Template .corePerfDSL file for a CV32E40P emplyoing dynamic delays.
 
-### `InstructionTrace_XISAAC.template`
+### [InstructionTrace_XISAAC.template](InstructionTrace_XISAAC.template)
 
 Template instruction trace a CV32E40P.
 
-### `CV32E40PXISAAC.ini`
+### [CV32E40PXISAAC.ini](CV32E40PXISAAC.ini)
 
 Sample .ini file for ETISS. Need to define µArch and elf-file

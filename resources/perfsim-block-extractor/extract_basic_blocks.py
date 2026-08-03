@@ -221,7 +221,7 @@ def find_delay_combinations(blocks: List[Dict[str, Any]]) -> dict:
                     else:
                         total_delays[cat][delay] += count
 
-    # TODO: replace hard coded map
+    # TODO: delay categories must be mapped dynamically to micro-actions (make configurable!)
     # Map categories to variable names
     CAT_TO_VAR = {
         "iCache": "IPort_R_*",

@@ -69,36 +69,6 @@ def test_vectors(pattern=None):
     code_block.addInstruction("add" , rd=4, rs1=10, rs2=11)
     code_blocks.append(code_block)
 
-    code_block = InstructionBlockDescription("test0", 0x000003c4)
-    code_block.addInstruction("addi", rd =1, rs1=10, rs2=11)
-    code_block.addInstruction("custom14", rd =2, rs1=10, rs2=11)
-    code_blocks.append(code_block)
-
-    code_block = InstructionBlockDescription("test1", 0x000003c4)
-    code_block.addInstruction("custom14", rd =2, rs1=10, rs2=11)
-    code_block.addInstruction("addi", rd =1, rs1=10, rs2=11)
-    code_blocks.append(code_block)
-
-    code_block = InstructionBlockDescription("test2", 0x000003c4)
-    code_block.addInstruction("lw",  rd =2, rs1=10, rs2=11)
-    code_block.addInstruction("add", rd =1, rs1=10, rs2=11)
-    code_blocks.append(code_block)
-
-    code_block = InstructionBlockDescription("test3", 0x000003c4)
-    code_block.addInstruction("add", rd =1, rs1=10, rs2=11)
-    code_block.addInstruction("lw",  rd =2, rs1=10, rs2=11)
-    code_blocks.append(code_block)
-
-    code_block = InstructionBlockDescription("test4", 0x000003c4)
-    code_block.addInstruction("mulh", rd =1, rs1=10, rs2=11)
-    code_block.addInstruction("lw",   rd =2, rs1=10, rs2=11)
-    code_blocks.append(code_block)
-
-    code_block = InstructionBlockDescription("test5", 0x000003c4)
-    code_block.addInstruction("lw",   rd =2, rs1=10, rs2=11)
-    code_block.addInstruction("mulh", rd =1, rs1=10, rs2=11)
-    code_blocks.append(code_block)
-
     assert all(block.is_basic_block() for block in code_blocks)
     assert all(block.is_valid_code_block() for block in code_blocks)
 

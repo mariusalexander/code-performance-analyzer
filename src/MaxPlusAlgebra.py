@@ -388,13 +388,6 @@ class DelayFunction:
         """
         return self.constant + sum(variables[coeff.name] * coeff.delay for coeff in self.variables)
 
-    # TODO remove
-    def min_delay(self, static_value:int|float) -> Optional[int]:
-        if len(self.variables) == 0:
-            return self.constant
-        min_delay = min(v.delay * static_value for v in self.variables)
-        return self.constant + min_delay
-
 
 class DelayExpression:
 
@@ -459,11 +452,6 @@ class DelayExpression:
         self.functions.sort(key=lambda f: len(f))
         return self
 
-    # delegate function
-    def can_merge(*args):
-        return DelayExpression.can_merge_v2(*args) # still fast and should not drop any terms of relevance (may keep some redundant terms?)
-        #return DelayExpression.can_merge_v1(*args) # fastest for large BBs but may drop relevant terms?
-
     @staticmethod
     def merge(inputs, node_delay=0, symbolic_name=None) -> 'DelayExpression':
         result = next(inputs)
@@ -506,7 +494,7 @@ class DelayExpression:
                     break
 
     @staticmethod
-    def can_merge_v2(candidate: DelayFunction, others: List['DelayFunction']) -> bool:
+    def can_merge(candidate: DelayFunction, others: List['DelayFunction']) -> bool:
         """
         Checks whether `candidate` is dominated by `others` by comparing magniutes of each variable.
         Returns new term if term is not dominated else None is returned.
@@ -528,59 +516,3 @@ class DelayExpression:
             return None
         # term dominates
         return candidate.copy()
-
-    @staticmethod
-    def can_merge_v1(candidate: DelayFunction, others: List['DelayFunction']) -> bool:
-        """
-        Checks whether `candidate` is dominated by `others` by checking all vertecies at the boundries of [0, upper]^n
-        (dominance checking of picewise-linear max-plus function)
-        Returns new term if term is not dominated else None is returned.
-        """
-        def assert_uniform_coefficients(candidate: DelayFunction, others: List['DelayFunction']) -> None:
-            """
-            Asserts that the approach is valid: All coefficients across `candidate` and `others` must be identical.
-            """
-            coeff_map: Dict[str, int] = {}
-            for f in [candidate, *others]:
-                for var in f:
-                    if var.name not in coeff_map:
-                        coeff_map[var.name] = var.delay
-            for var in candidate:
-                if coeff_map[var.name] != var.delay:
-                    raise AssertionError(
-                        f"Dominance checking may not be valid! " +
-                        f"Candidate: {repr(candidate)} could be of relevance ({repr(others)})"
-                    )
-
-        # abort if any function is equal to candidate
-        if any((candidate == other) for other in others):
-            return None
-
-        # TODO: make this variable externally!
-        upper = 5
-
-        others_names = { name for f in others for name in f.names() }
-
-        # build the complete assignment upfront to safe on allocations
-        assignment = { name: upper for name in candidate.names()    if name not in others_names } | \
-                     { name: 0     for name in others_names         if name not in candidate }
-        # shared variables
-        shared_names = [ name for name in candidate.names() if name not in assignment ]
-        # add shared variables
-        assignment  |= { name: -1 for name in shared_names }
-
-        for values in product((0, upper), repeat=len(shared_names)):
-            # update in place
-            for name, value in zip(shared_names, values):
-                assignment[name] = value
-
-            candidate_val = candidate.resolve(assignment)
-            others_max    = max(f.resolve(assignment) for f in others)
-
-            # found a vertex where candidate function is not dominated -> must append term
-            if candidate_val > others_max:
-                return candidate.copy()
-
-        assert_uniform_coefficients(candidate, others)
-
-        return None

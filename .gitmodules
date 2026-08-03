@@ -1,0 +1,3 @@
+[submodule "M2-ISA-R-Perf"]
+	path = M2-ISA-R-Perf
+	url = git@github.com:mariusalexander/M2-ISA-R-Perf.git

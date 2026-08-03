@@ -60,7 +60,7 @@ class BlockSchedulingTransformer:
         self.verbose = verbose
         # whether to use more descriptive names for edges to registers, like 'r2 (Xa)' instead of 'Xa'
         self.rename_edges  = rename_edges
-        self.brpred_option = ""
+        self.brpred_option = "" # sta_never_taken -> connects brpred-edges only if miss predictions occure when using "never taken"-strategy
         # TODO: infer these attributes dynamically from core perf dsl or the struct model
         self._register_models = ["regModel", "clobberModel"]
         self._target_register_mapping = {
@@ -70,15 +70,13 @@ class BlockSchedulingTransformer:
         self._branch_prediction_models  = ["noBranchPredModel", "staBranchPredModel", "dynBranchPredModel", "perfectBranchPredModel"]
         self._supported_models = self._register_models + self._branch_prediction_models
 
-    def transform(self, sched_model:SchedulingModel, block_descriptions:List[InstructionBlockDescription], brpred_option:str) -> SchedulingModel:
+    def transform(self, sched_model:SchedulingModel, block_descriptions:List[InstructionBlockDescription]) -> SchedulingModel:
         """
         Transforms basic blocks (BB) into a block scheudling model.
         The model is a regular Scheduling Model which only contains a scheduling function for each BB.
         """
         print()
         print("-- TRANSFORM: BLOCK_SCHEDULING_MODEL --")
-
-        self.brpred_option = brpred_option
 
         blockSchedulingModel = BlockSchedulingModel()
 
@@ -135,7 +133,7 @@ class BlockSchedulingTransformer:
             block_instr = block_desc.instructions[block_idx]
 
             # find instruction of BB in base scheduling model and append nodes to block function
-            sched_function = sched_variant.getSchedulingFunction(block_instr.name)
+            [sched_function] = (f for f in sched_variant.schedulingFunctions if f.name == block_instr.name)
             self.__appendSchedulingFunction(sched_function, block_function, block_desc, block_idx, mappings)
 
         self.__resolveOutgoingEdges(block_function, mappings)

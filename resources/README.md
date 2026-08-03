@@ -1,16 +1,20 @@
 # Other Resources
 
-Here, other resources are saved that are not necessary for this code-project but were used to compile or extract results.
+Here other resources are saved that are not necessary for this code-project but were used to compile or extract results.
 
-### `coreperfdsl-generator/`
+### [coreperfdsl-generator/](coreperfdsl-generator/)
 
 Resources for generating .corePerfDSL files based on the XISAAC-Variant of a CV32E40P-core.
 
-### `performance-sim`
+### [perfsim-block-extractor/](perfsim-block-extractor/)
 
-Custom resources using in performance simulations.
+Adapted block extractor to determine the basic blocks in a performance simulation.
 
-### `normalize_choices.py`
+### [perfsim-models/](perfsim-models/)
+
+Custom resource and connector models for the performance simulation.
+
+### [normalize_choices.py](normalize_choices.py)
 
 Extracts basic blocks for the CPI prediction from traces generated in the GenIE/XISAAC workflow.
 
@@ -40,15 +44,12 @@ python3 normalize_choices.py $EXPERIMENT -x -p -c -o=exports/
 The CPI-analysis can then be executed using:
 
 ```bash
-BENCH=exports/crc32/20260423T075325
-PYTHONPATH=<path-to-m2isar-perf>/m2isar_perf/ python3 ./main.py <path/to/dump_dir> --files $BENCH/xisaac/experiment.json --cores="*" --cpi --rank
+python3 ./main.py <path/to/dump_dir> --files $BENCH/xisaac/experiment.json --cores="*" --cpi --rank
 ```
 
 Symbolic analysis of all custom instructions:
 
 ```bash
 BENCH=exports/crc32/20260423T075325
-PYTHONPATH=<path-to-m2isar-perf>/m2isar_perf/ python3 ./main.py <path/to/dump_dir> --files $BENCH/xisaac/experiment.json --cores="*V0" --cpi --rank --sym=CUSTOM
+python3 ./main.py <path/to/dump_dir> --files $BENCH/xisaac/experiment.json --cores="*V0" --cpi --rank --sym=CUSTOM
 ```
-
-> **Note:** CorePerfDSL-model must be exported (dumped) using M2-ISA-R-Perf - both the structural model and scheduling model!
