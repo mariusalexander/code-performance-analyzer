@@ -54,16 +54,6 @@ static cv32e40p::CustomDCacheModel* dCache{};
 static cv32e40p::DividerModel* divider{};
 static cv32e40p::DividerUnsignedModel* divider_u{};
 
-// struct Entry{
-//     uint64_t count = 0;
-//     int      value = 0;
-// };
-
-// std::vector<Entry> iCache;
-// std::vector<Entry> dCache;
-// std::vector<Entry> divider;
-// std::vector<Entry> divider_u;
-
 void BlockExtractor::initialize(void){
     std::cout << "BlockExtractor initialized" << std::endl;
 }
@@ -95,7 +85,7 @@ void BlockExtractor::execute(void){
         globalInstrCnt++;
 
         uint64_t curPc = ch_pc_ptr[instrIdx_i];
-        
+
         while(1){
             // Check if Block-Start
             if(!activeBlock){
@@ -121,7 +111,7 @@ void BlockExtractor::execute(void){
                     error << "### WARNING: Block 0x" << std::hex << curBlock->getPc() << " - 0x" << curBlock->getFinalPc() << " ended at 0x" << lastPc << "! Need to split BB?" << std::endl;
                     throw std::logic_error(error.str());
                 }
-            
+
                 // std::cout << "### BB 0x" << std::hex << curBlock->getPc() << " - 0x" << lastPc << " ended: pc change at 0x" << curPc << std::dec << ", typeId: " << ch_typeId_ptr[instrIdx_i] << std::endl;
                 curBlock->forceEnd(lastPc);
                 activeBlock = false;
@@ -395,7 +385,7 @@ void BlockExtractor::finalize(void){
     printAccumulatedEntries("dCacheDelays", accumulatedDCacheDelays);
     printAccumulatedEntries("divDelays", accumulatedDivDelays);
     printAccumulatedEntries("divUDelays", accumulatedDivUDelays);
-    
+
     // Calculate the total number of all delays
     uint64_t totalDelays = 0;
 

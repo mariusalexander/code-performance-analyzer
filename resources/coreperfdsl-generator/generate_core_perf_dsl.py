@@ -241,39 +241,45 @@ def parse_ranking_row(details_string: str) -> dict[str, dict]:
 def main() -> None:
     global DELAY_VECTORS, PERFMODEL_DESC, MODEL_SUFFIX
 
+    auto_generate_default=3
+
     parser = argparse.ArgumentParser(
-        description="Generates CV32ISAAC variants for a list of custom instructions."
+        description="Generates CV32ISAAC variants for a list of custom instructions. " + \
+                    "Pipeline has three stages (I, X, O) per custom instruction."
     )
     parser.add_argument(
-        "-i", "--instructions",
+        "-i", "--custom-instructions",
         type=lambda s: [item.strip() for item in s.split(",")],
         default=None,
         metavar="A,B,C",
-        help="Comma-separated list of custom instructions (just the idx).",
+        help="Comma-separated list of custom instructions (just the indicies).",
     )
     parser.add_argument(
-        "-n", "--variants",
+        "-n", "--nvariants",
         type=int,
-        default=100,
+        default=-1,
         metavar="N_VARIANTS",
-        help="Number of variants",
+        help="Defines the max number of variants to generate (use -1 to get all variants)",
     )
     parser.add_argument(
         "--auto-generate",
         nargs='?',
         type=int,
-        const=3,
-        help="Auto generates adequate number of variants",
+        const=auto_generate_default,
+        metavar="MAX_DELAY",
+        help="Auto generates adequate number of variants (argument defines max delay per stage)",
     )
     parser.add_argument(
-        "--xisaac",
+        "-ev", "--extract-variants",
         type=lambda s: Path(s).resolve(),
-        help="Extracts variants from xisaac-demo experiment",
+        metavar="EXPERIMENT_DIR",
+        help="Extracts the variants from an xisaac-demo experiment",
     )
     parser.add_argument(
-        "--infer",
+        "-ei", "--extract-instructions",
         type=lambda s: Path(s).resolve(),
-        help="Extracts instructions from xisaac-demo experiment",
+        metavar="EXPERIMENT_DIR",
+        help="Extracts the instructions names only from an xisaac-demo experiment",
     )
     parser.add_argument(
         "-t", "--template",
@@ -287,81 +293,108 @@ def main() -> None:
         type=Path,
         metavar="FILE",
         default=Path(os.path.dirname(__file__) + "/InstructionTrace_XISAAC.template"),
-        help="Path to the template Core Perf DSL file.",
-    )
-    parser.add_argument(
-        "--output-trace",
-        type=Path,
-        default=None,
-        metavar="FILE",
-        help="Write the result to this file instead of stdout.",
+        help="Path to the template Instruction Trace JSON file.",
     )
     parser.add_argument(
         "--suffix",
         type=str,
         default="",
         metavar="SUFFIX",
-        help="Optional suffix for uArchs.",
+        help="Optional suffix for the generated CorePerfModel models.",
     )
     parser.add_argument(
-        "--branch-model",
+        "--branch-pred-model",
         type=str,
         default="staBranchPredModel",
-        metavar="SUFFIX",
-        help="Optional suffix for uArchs.",
-
+        metavar="BR_RPED_MODEL",
+        help="Sets the branch prediction model (e.g. staBranchPredModel or dynBranchPredModel).",
     )
+
     parser.add_argument(
-        "-o", "--output",
+        "-o", "--output-coreperf",
         type=Path,
         default=None,
         metavar="FILE",
-        help="Write the result to this file instead of stdout.",
+        help="Write the resulting corePerfDSl to this file instead.",
     )
     parser.add_argument(
-        "-p", "--print_vector",
+        "--output-trace",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="Write the resulting trace.json to this file instead.",
+    )
+    parser.add_argument(
+        "-O", "--output-all",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="Writes the resulting corePerf and trace.json to base file path instead.",
+    )
+
+    parser.add_argument(
+        "-p", "--print-vector",
         action="store_true",
         help="Prints the latency vector for all custom instructions",
     )
     parser.add_argument(
-        "-P", "--print_coreperf",
+        "--print-coreperf",
         action="store_true",
-        help="Prints the latency vector for all custom instructions",
+        help="Prints the generated core perf dsl file",
     )
     parser.add_argument(
-        "--print_trace",
+        "--print-trace",
         action="store_true",
-        help="Prints the latency vector for all custom instructions",
+        help="Prints the generated instruction trace json file",
     )
 
     args = parser.parse_args()
 
-    if args.variants < 1:
-        parser.error("`variants` must be > 0!")
+    if args.nvariants != -1 and args.nvariants < 1:
+        parser.error("`nvariants` must be >= 1!")
 
-    if sum(bool(arg) for arg in (args.auto_generate, args.xisaac)) != 1 or not (bool(args.instructions) ^ bool(args.xisaac) ^ bool(args.infer)):
-        parser.error("conflicting or missing arguments: either use `--instructions`, `--xisaac` or `--infer`")
+    if sum(int(bool(arg)) for arg in (args.custom_instructions, args.extract_variants, args.extract_instructions)) != 1:
+        parser.error("conflicting or missing arguments: either use `--custom-instructions`, `--extract-variants` or `--extract-instructions`")
+
+    if args.custom_instructions:
+        if not args.auto_generate:
+            args.auto_generate = auto_generate_default
+    if args.extract_instructions:
+        if not args.auto_generate:
+            args.auto_generate = auto_generate_default
+    if args.extract_variants:
+        if args.auto_generate:
+            parser.error("conflicting arguments: must not use `--extract_variants` with `--auto-generate`")
+
+    if args.output_all:
+        if args.output_coreperf or args.output_trace:
+            parser.error("conflicting arguments: either use `-O` or `--output-coreperf` and `--output-trace` separately")
+        args.output_coreperf = Path(f"{args.output_all}.corePerfDsl").resolve()
+        args.output_trace    = Path(f"{args.output_all}.json").resolve()
 
     if args.suffix:
         assert not any(c.isspace() for c in args.suffix), "Suffix cannot contain spaces!"
         MODEL_SUFFIX = args.suffix
 
-    # TODO: move to main dictionary
-    PERFMODEL_DESC = PERFMODEL_DESC.replace('|BRANCH_MODEL|', args.branch_model)
+    # update branch prediction model
+    PERFMODEL_DESC = PERFMODEL_DESC.replace('|BRANCH_MODEL|', args.branch_pred_model)
 
-    if args.infer:
-        path = args.infer / "compare_filtered_selected.csv"
+    # extract instructions
+    if args.extract_instructions:
+        path = args.extract_instructions / "compare_filtered_selected.csv"
         with open(path) as f:
             content = f.read()
             matches = re.finditer(r"custom(\d+)", content)
-        args.instructions = [ match.group(1) for match in matches ]
+        args.custom_instructions = [ match.group(1) for match in matches ]
 
+    # auto generate latency vectors
     if args.auto_generate:
-        delay_vectors = generate_combinations(max_latency=args.auto_generate, keys=args.instructions)
-        DELAY_VECTORS = delay_vectors[:args.variants]
-    elif args.xisaac:
+        delay_vectors = generate_combinations(max_latency=args.auto_generate, keys=args.custom_instructions)
+        DELAY_VECTORS = delay_vectors[:args.nvariants]
 
-        path = args.xisaac / "uarch_ranking_filtered_selected.csv"
+    # extract variants (with latency vectors)
+    elif args.extract_variants:
+        path = args.extract_variants / "uarch_ranking_filtered_selected.csv"
         with open(path, "r") as f:
             reader = csv.reader(f)
             header = next(reader)
@@ -378,16 +411,16 @@ def main() -> None:
         vectors.sort(key=lambda e: e[0])
         DELAY_VECTORS = [ vector for _, vector in vectors ]
         # update arguments
-        args.instructions = list(DELAY_VECTORS[0].keys())
+        args.custom_instructions = list(DELAY_VECTORS[0].keys())
 
     if args.print_vector:
         for idx, instrs in enumerate(DELAY_VECTORS):
-            print(SCOPE_NL(f"{idx:>2} =", (f"{instr:>2}: {stages}" for instr, stages in instrs.items())))
+            print(SCOPE_NL(f"V{idx} =", (f"CUSTOM_{instr:<3}: {stages}" for instr, stages in instrs.items())))
 
-
+    # create instruction trace json
     if args.output_trace or args.print_trace:
         template_text = args.trace_template.read_text(encoding="utf-8")
-        content = replace_placeholders(template_text, instructions=args.instructions, num_variants=-1)
+        content = replace_placeholders(template_text, instructions=args.custom_instructions, num_variants=-1)
         if args.output_trace:
             args.output_trace.parent.mkdir(parents=True, exist_ok=True)
             print(f"Writing trace.json to {args.output_trace}...")
@@ -396,14 +429,13 @@ def main() -> None:
         if args.print_trace:
             print(content)
 
-    print("NUM VARIANTS:", len(DELAY_VECTORS))
-
+    # create core perf dsl
     template_text = args.template.read_text(encoding="utf-8")
-    content = replace_placeholders(template_text, instructions=args.instructions, num_variants=len(DELAY_VECTORS))
-    if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        print(f"Writing coreperf to {args.output}...")
-        args.output.write_text(content, encoding="utf-8")
+    content = replace_placeholders(template_text, instructions=args.custom_instructions, num_variants=len(DELAY_VECTORS))
+    if args.output_coreperf:
+        args.output_coreperf.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Writing coreperf to {args.output_coreperf}...")
+        args.output_coreperf.write_text(content, encoding="utf-8")
         print( "done!")
     if args.print_coreperf:
         print(content)

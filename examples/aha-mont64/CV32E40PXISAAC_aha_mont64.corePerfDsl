@@ -1,0 +1,1284 @@
+/*
+ * Copyright 2024 Chair of EDA, Technical University of Munich
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *	 http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*********************************** Microaction Section ***********************************/
+Connector {Pc, Pc_np, Pc_p}
+Connector {Xa, Xb, Xd}
+
+Resource {PCGen, Decoder, JumpDecoder, ALU, LSU, CSR}
+Resource {MUL, MULH(5)}
+Resource {DIV(12), DIVU(12)}
+Resource {IPort_R(1), DPort_R(1), DPort_W(1)}
+
+// = XISAAC Resources =
+virtual Resource {
+  vCUSTOM0_I,
+  vCUSTOM0_X,
+  vCUSTOM0_O,
+  vCUSTOM5_I,
+  vCUSTOM5_X,
+  vCUSTOM5_O
+}
+
+// Variant: V0
+Resource {V0_CUSTOM0_I(1), V0_CUSTOM0_X(0), V0_CUSTOM0_O(0)}
+Resource {V0_CUSTOM5_I(1), V0_CUSTOM5_X(0), V0_CUSTOM5_O(0)}
+
+// Variant: V1
+Resource {V1_CUSTOM0_I(1), V1_CUSTOM0_X(0), V1_CUSTOM0_O(0)}
+Resource {V1_CUSTOM5_I(1), V1_CUSTOM5_X(0), V1_CUSTOM5_O(1)}
+
+// Variant: V2
+Resource {V2_CUSTOM0_I(1), V2_CUSTOM0_X(0), V2_CUSTOM0_O(0)}
+Resource {V2_CUSTOM5_I(1), V2_CUSTOM5_X(1), V2_CUSTOM5_O(1)}
+
+// Variant: V3
+Resource {V3_CUSTOM0_I(1), V3_CUSTOM0_X(0), V3_CUSTOM0_O(1)}
+Resource {V3_CUSTOM5_I(1), V3_CUSTOM5_X(0), V3_CUSTOM5_O(0)}
+
+// Variant: V4
+Resource {V4_CUSTOM0_I(1), V4_CUSTOM0_X(0), V4_CUSTOM0_O(1)}
+Resource {V4_CUSTOM5_I(1), V4_CUSTOM5_X(0), V4_CUSTOM5_O(1)}
+
+// Variant: V5
+Resource {V5_CUSTOM0_I(1), V5_CUSTOM0_X(0), V5_CUSTOM0_O(1)}
+Resource {V5_CUSTOM5_I(1), V5_CUSTOM5_X(1), V5_CUSTOM5_O(1)}
+
+// Variant: V6
+Resource {V6_CUSTOM0_I(1), V6_CUSTOM0_X(1), V6_CUSTOM0_O(1)}
+Resource {V6_CUSTOM5_I(1), V6_CUSTOM5_X(0), V6_CUSTOM5_O(0)}
+
+// Variant: V7
+Resource {V7_CUSTOM0_I(1), V7_CUSTOM0_X(1), V7_CUSTOM0_O(1)}
+Resource {V7_CUSTOM5_I(1), V7_CUSTOM5_X(0), V7_CUSTOM5_O(1)}
+
+// Variant: V8
+Resource {V8_CUSTOM0_I(1), V8_CUSTOM0_X(1), V8_CUSTOM0_O(1)}
+Resource {V8_CUSTOM5_I(1), V8_CUSTOM5_X(1), V8_CUSTOM5_O(1)}
+
+// Variant: V9
+Resource {V9_CUSTOM0_I(2), V9_CUSTOM0_X(0), V9_CUSTOM0_O(0)}
+Resource {V9_CUSTOM5_I(2), V9_CUSTOM5_X(0), V9_CUSTOM5_O(0)}
+
+// Variant: V10
+Resource {V10_CUSTOM0_I(2), V10_CUSTOM0_X(0), V10_CUSTOM0_O(0)}
+Resource {V10_CUSTOM5_I(2), V10_CUSTOM5_X(0), V10_CUSTOM5_O(2)}
+
+// Variant: V11
+Resource {V11_CUSTOM0_I(2), V11_CUSTOM0_X(0), V11_CUSTOM0_O(0)}
+Resource {V11_CUSTOM5_I(2), V11_CUSTOM5_X(2), V11_CUSTOM5_O(2)}
+
+// Variant: V12
+Resource {V12_CUSTOM0_I(2), V12_CUSTOM0_X(0), V12_CUSTOM0_O(2)}
+Resource {V12_CUSTOM5_I(2), V12_CUSTOM5_X(0), V12_CUSTOM5_O(0)}
+
+// Variant: V13
+Resource {V13_CUSTOM0_I(2), V13_CUSTOM0_X(0), V13_CUSTOM0_O(2)}
+Resource {V13_CUSTOM5_I(2), V13_CUSTOM5_X(0), V13_CUSTOM5_O(2)}
+
+// Variant: V14
+Resource {V14_CUSTOM0_I(2), V14_CUSTOM0_X(0), V14_CUSTOM0_O(2)}
+Resource {V14_CUSTOM5_I(2), V14_CUSTOM5_X(2), V14_CUSTOM5_O(2)}
+
+// Variant: V15
+Resource {V15_CUSTOM0_I(2), V15_CUSTOM0_X(2), V15_CUSTOM0_O(2)}
+Resource {V15_CUSTOM5_I(2), V15_CUSTOM5_X(0), V15_CUSTOM5_O(0)}
+
+// Variant: V16
+Resource {V16_CUSTOM0_I(2), V16_CUSTOM0_X(2), V16_CUSTOM0_O(2)}
+Resource {V16_CUSTOM5_I(2), V16_CUSTOM5_X(0), V16_CUSTOM5_O(2)}
+
+// Variant: V17
+Resource {V17_CUSTOM0_I(2), V17_CUSTOM0_X(2), V17_CUSTOM0_O(2)}
+Resource {V17_CUSTOM5_I(2), V17_CUSTOM5_X(2), V17_CUSTOM5_O(2)}
+
+// Variant: V18
+Resource {V18_CUSTOM0_I(3), V18_CUSTOM0_X(0), V18_CUSTOM0_O(0)}
+Resource {V18_CUSTOM5_I(3), V18_CUSTOM5_X(0), V18_CUSTOM5_O(0)}
+
+// Variant: V19
+Resource {V19_CUSTOM0_I(3), V19_CUSTOM0_X(0), V19_CUSTOM0_O(0)}
+Resource {V19_CUSTOM5_I(3), V19_CUSTOM5_X(0), V19_CUSTOM5_O(3)}
+
+// Variant: V20
+Resource {V20_CUSTOM0_I(3), V20_CUSTOM0_X(0), V20_CUSTOM0_O(0)}
+Resource {V20_CUSTOM5_I(3), V20_CUSTOM5_X(3), V20_CUSTOM5_O(3)}
+
+// Variant: V21
+Resource {V21_CUSTOM0_I(3), V21_CUSTOM0_X(0), V21_CUSTOM0_O(3)}
+Resource {V21_CUSTOM5_I(3), V21_CUSTOM5_X(0), V21_CUSTOM5_O(0)}
+
+// Variant: V22
+Resource {V22_CUSTOM0_I(3), V22_CUSTOM0_X(0), V22_CUSTOM0_O(3)}
+Resource {V22_CUSTOM5_I(3), V22_CUSTOM5_X(0), V22_CUSTOM5_O(3)}
+
+// Variant: V23
+Resource {V23_CUSTOM0_I(3), V23_CUSTOM0_X(0), V23_CUSTOM0_O(3)}
+Resource {V23_CUSTOM5_I(3), V23_CUSTOM5_X(3), V23_CUSTOM5_O(3)}
+
+// Variant: V24
+Resource {V24_CUSTOM0_I(3), V24_CUSTOM0_X(3), V24_CUSTOM0_O(3)}
+Resource {V24_CUSTOM5_I(3), V24_CUSTOM5_X(0), V24_CUSTOM5_O(0)}
+
+// Variant: V25
+Resource {V25_CUSTOM0_I(3), V25_CUSTOM0_X(3), V25_CUSTOM0_O(3)}
+Resource {V25_CUSTOM5_I(3), V25_CUSTOM5_X(0), V25_CUSTOM5_O(3)}
+
+// Variant: V26
+Resource {V26_CUSTOM0_I(3), V26_CUSTOM0_X(3), V26_CUSTOM0_O(3)}
+Resource {V26_CUSTOM5_I(3), V26_CUSTOM5_X(3), V26_CUSTOM5_O(3)}
+// --------------------
+
+Microaction {
+  uA_IFetch        (Pc -> IPort_R),
+  uA_PCGen         (Pc -> PCGen -> Pc_p),
+  uA_Decode        (Decoder),
+  uA_JumpDecode    (JumpDecoder -> Pc_np),
+  uA_JumpDecodeReg (Xa -> JumpDecoder -> Pc_np),
+  uA_OF_A          (Xa),
+  uA_OF_B          (Xb),
+  uA_ALU_RegUpdate (ALU -> Xd),
+  uA_ALU_Branch    (ALU -> Pc_np),
+  uA_CSR           (CSR -> Xd),
+  uA_LSU           (LSU),
+  uA_MUL           (MUL -> Xd),
+  uA_MULH          (MULH -> Xd),
+  uA_DIV           (DIV -> Xd),
+  uA_DIVU          (DIVU -> Xd),
+  uA_Memory_R      (DPort_R -> Xd),
+  uA_Memory_W      (DPort_W)
+}
+
+// = XISAAC Microactions =
+virtual Microaction {
+  vuA_CUSTOM0_I,
+  vuA_CUSTOM0_X,
+  vuA_CUSTOM0_O,
+  vuA_CUSTOM5_I,
+  vuA_CUSTOM5_X,
+  vuA_CUSTOM5_O
+}
+
+// Variant: V0
+Microaction {
+  uA_V0_CUSTOM0_I    (V0_CUSTOM0_I),
+  uA_V0_CUSTOM0_X    (V0_CUSTOM0_X),
+  uA_V0_CUSTOM0_O    (V0_CUSTOM0_O -> Xd),
+  uA_V0_CUSTOM5_I    (V0_CUSTOM5_I),
+  uA_V0_CUSTOM5_X    (V0_CUSTOM5_X),
+  uA_V0_CUSTOM5_O    (V0_CUSTOM5_O -> Xd)
+}
+// Variant: V1
+Microaction {
+  uA_V1_CUSTOM0_I    (V1_CUSTOM0_I),
+  uA_V1_CUSTOM0_X    (V1_CUSTOM0_X),
+  uA_V1_CUSTOM0_O    (V1_CUSTOM0_O -> Xd),
+  uA_V1_CUSTOM5_I    (V1_CUSTOM5_I),
+  uA_V1_CUSTOM5_X    (V1_CUSTOM5_X),
+  uA_V1_CUSTOM5_O    (V1_CUSTOM5_O -> Xd)
+}
+// Variant: V2
+Microaction {
+  uA_V2_CUSTOM0_I    (V2_CUSTOM0_I),
+  uA_V2_CUSTOM0_X    (V2_CUSTOM0_X),
+  uA_V2_CUSTOM0_O    (V2_CUSTOM0_O -> Xd),
+  uA_V2_CUSTOM5_I    (V2_CUSTOM5_I),
+  uA_V2_CUSTOM5_X    (V2_CUSTOM5_X),
+  uA_V2_CUSTOM5_O    (V2_CUSTOM5_O -> Xd)
+}
+// Variant: V3
+Microaction {
+  uA_V3_CUSTOM0_I    (V3_CUSTOM0_I),
+  uA_V3_CUSTOM0_X    (V3_CUSTOM0_X),
+  uA_V3_CUSTOM0_O    (V3_CUSTOM0_O -> Xd),
+  uA_V3_CUSTOM5_I    (V3_CUSTOM5_I),
+  uA_V3_CUSTOM5_X    (V3_CUSTOM5_X),
+  uA_V3_CUSTOM5_O    (V3_CUSTOM5_O -> Xd)
+}
+// Variant: V4
+Microaction {
+  uA_V4_CUSTOM0_I    (V4_CUSTOM0_I),
+  uA_V4_CUSTOM0_X    (V4_CUSTOM0_X),
+  uA_V4_CUSTOM0_O    (V4_CUSTOM0_O -> Xd),
+  uA_V4_CUSTOM5_I    (V4_CUSTOM5_I),
+  uA_V4_CUSTOM5_X    (V4_CUSTOM5_X),
+  uA_V4_CUSTOM5_O    (V4_CUSTOM5_O -> Xd)
+}
+// Variant: V5
+Microaction {
+  uA_V5_CUSTOM0_I    (V5_CUSTOM0_I),
+  uA_V5_CUSTOM0_X    (V5_CUSTOM0_X),
+  uA_V5_CUSTOM0_O    (V5_CUSTOM0_O -> Xd),
+  uA_V5_CUSTOM5_I    (V5_CUSTOM5_I),
+  uA_V5_CUSTOM5_X    (V5_CUSTOM5_X),
+  uA_V5_CUSTOM5_O    (V5_CUSTOM5_O -> Xd)
+}
+// Variant: V6
+Microaction {
+  uA_V6_CUSTOM0_I    (V6_CUSTOM0_I),
+  uA_V6_CUSTOM0_X    (V6_CUSTOM0_X),
+  uA_V6_CUSTOM0_O    (V6_CUSTOM0_O -> Xd),
+  uA_V6_CUSTOM5_I    (V6_CUSTOM5_I),
+  uA_V6_CUSTOM5_X    (V6_CUSTOM5_X),
+  uA_V6_CUSTOM5_O    (V6_CUSTOM5_O -> Xd)
+}
+// Variant: V7
+Microaction {
+  uA_V7_CUSTOM0_I    (V7_CUSTOM0_I),
+  uA_V7_CUSTOM0_X    (V7_CUSTOM0_X),
+  uA_V7_CUSTOM0_O    (V7_CUSTOM0_O -> Xd),
+  uA_V7_CUSTOM5_I    (V7_CUSTOM5_I),
+  uA_V7_CUSTOM5_X    (V7_CUSTOM5_X),
+  uA_V7_CUSTOM5_O    (V7_CUSTOM5_O -> Xd)
+}
+// Variant: V8
+Microaction {
+  uA_V8_CUSTOM0_I    (V8_CUSTOM0_I),
+  uA_V8_CUSTOM0_X    (V8_CUSTOM0_X),
+  uA_V8_CUSTOM0_O    (V8_CUSTOM0_O -> Xd),
+  uA_V8_CUSTOM5_I    (V8_CUSTOM5_I),
+  uA_V8_CUSTOM5_X    (V8_CUSTOM5_X),
+  uA_V8_CUSTOM5_O    (V8_CUSTOM5_O -> Xd)
+}
+// Variant: V9
+Microaction {
+  uA_V9_CUSTOM0_I    (V9_CUSTOM0_I),
+  uA_V9_CUSTOM0_X    (V9_CUSTOM0_X),
+  uA_V9_CUSTOM0_O    (V9_CUSTOM0_O -> Xd),
+  uA_V9_CUSTOM5_I    (V9_CUSTOM5_I),
+  uA_V9_CUSTOM5_X    (V9_CUSTOM5_X),
+  uA_V9_CUSTOM5_O    (V9_CUSTOM5_O -> Xd)
+}
+// Variant: V10
+Microaction {
+  uA_V10_CUSTOM0_I    (V10_CUSTOM0_I),
+  uA_V10_CUSTOM0_X    (V10_CUSTOM0_X),
+  uA_V10_CUSTOM0_O    (V10_CUSTOM0_O -> Xd),
+  uA_V10_CUSTOM5_I    (V10_CUSTOM5_I),
+  uA_V10_CUSTOM5_X    (V10_CUSTOM5_X),
+  uA_V10_CUSTOM5_O    (V10_CUSTOM5_O -> Xd)
+}
+// Variant: V11
+Microaction {
+  uA_V11_CUSTOM0_I    (V11_CUSTOM0_I),
+  uA_V11_CUSTOM0_X    (V11_CUSTOM0_X),
+  uA_V11_CUSTOM0_O    (V11_CUSTOM0_O -> Xd),
+  uA_V11_CUSTOM5_I    (V11_CUSTOM5_I),
+  uA_V11_CUSTOM5_X    (V11_CUSTOM5_X),
+  uA_V11_CUSTOM5_O    (V11_CUSTOM5_O -> Xd)
+}
+// Variant: V12
+Microaction {
+  uA_V12_CUSTOM0_I    (V12_CUSTOM0_I),
+  uA_V12_CUSTOM0_X    (V12_CUSTOM0_X),
+  uA_V12_CUSTOM0_O    (V12_CUSTOM0_O -> Xd),
+  uA_V12_CUSTOM5_I    (V12_CUSTOM5_I),
+  uA_V12_CUSTOM5_X    (V12_CUSTOM5_X),
+  uA_V12_CUSTOM5_O    (V12_CUSTOM5_O -> Xd)
+}
+// Variant: V13
+Microaction {
+  uA_V13_CUSTOM0_I    (V13_CUSTOM0_I),
+  uA_V13_CUSTOM0_X    (V13_CUSTOM0_X),
+  uA_V13_CUSTOM0_O    (V13_CUSTOM0_O -> Xd),
+  uA_V13_CUSTOM5_I    (V13_CUSTOM5_I),
+  uA_V13_CUSTOM5_X    (V13_CUSTOM5_X),
+  uA_V13_CUSTOM5_O    (V13_CUSTOM5_O -> Xd)
+}
+// Variant: V14
+Microaction {
+  uA_V14_CUSTOM0_I    (V14_CUSTOM0_I),
+  uA_V14_CUSTOM0_X    (V14_CUSTOM0_X),
+  uA_V14_CUSTOM0_O    (V14_CUSTOM0_O -> Xd),
+  uA_V14_CUSTOM5_I    (V14_CUSTOM5_I),
+  uA_V14_CUSTOM5_X    (V14_CUSTOM5_X),
+  uA_V14_CUSTOM5_O    (V14_CUSTOM5_O -> Xd)
+}
+// Variant: V15
+Microaction {
+  uA_V15_CUSTOM0_I    (V15_CUSTOM0_I),
+  uA_V15_CUSTOM0_X    (V15_CUSTOM0_X),
+  uA_V15_CUSTOM0_O    (V15_CUSTOM0_O -> Xd),
+  uA_V15_CUSTOM5_I    (V15_CUSTOM5_I),
+  uA_V15_CUSTOM5_X    (V15_CUSTOM5_X),
+  uA_V15_CUSTOM5_O    (V15_CUSTOM5_O -> Xd)
+}
+// Variant: V16
+Microaction {
+  uA_V16_CUSTOM0_I    (V16_CUSTOM0_I),
+  uA_V16_CUSTOM0_X    (V16_CUSTOM0_X),
+  uA_V16_CUSTOM0_O    (V16_CUSTOM0_O -> Xd),
+  uA_V16_CUSTOM5_I    (V16_CUSTOM5_I),
+  uA_V16_CUSTOM5_X    (V16_CUSTOM5_X),
+  uA_V16_CUSTOM5_O    (V16_CUSTOM5_O -> Xd)
+}
+// Variant: V17
+Microaction {
+  uA_V17_CUSTOM0_I    (V17_CUSTOM0_I),
+  uA_V17_CUSTOM0_X    (V17_CUSTOM0_X),
+  uA_V17_CUSTOM0_O    (V17_CUSTOM0_O -> Xd),
+  uA_V17_CUSTOM5_I    (V17_CUSTOM5_I),
+  uA_V17_CUSTOM5_X    (V17_CUSTOM5_X),
+  uA_V17_CUSTOM5_O    (V17_CUSTOM5_O -> Xd)
+}
+// Variant: V18
+Microaction {
+  uA_V18_CUSTOM0_I    (V18_CUSTOM0_I),
+  uA_V18_CUSTOM0_X    (V18_CUSTOM0_X),
+  uA_V18_CUSTOM0_O    (V18_CUSTOM0_O -> Xd),
+  uA_V18_CUSTOM5_I    (V18_CUSTOM5_I),
+  uA_V18_CUSTOM5_X    (V18_CUSTOM5_X),
+  uA_V18_CUSTOM5_O    (V18_CUSTOM5_O -> Xd)
+}
+// Variant: V19
+Microaction {
+  uA_V19_CUSTOM0_I    (V19_CUSTOM0_I),
+  uA_V19_CUSTOM0_X    (V19_CUSTOM0_X),
+  uA_V19_CUSTOM0_O    (V19_CUSTOM0_O -> Xd),
+  uA_V19_CUSTOM5_I    (V19_CUSTOM5_I),
+  uA_V19_CUSTOM5_X    (V19_CUSTOM5_X),
+  uA_V19_CUSTOM5_O    (V19_CUSTOM5_O -> Xd)
+}
+// Variant: V20
+Microaction {
+  uA_V20_CUSTOM0_I    (V20_CUSTOM0_I),
+  uA_V20_CUSTOM0_X    (V20_CUSTOM0_X),
+  uA_V20_CUSTOM0_O    (V20_CUSTOM0_O -> Xd),
+  uA_V20_CUSTOM5_I    (V20_CUSTOM5_I),
+  uA_V20_CUSTOM5_X    (V20_CUSTOM5_X),
+  uA_V20_CUSTOM5_O    (V20_CUSTOM5_O -> Xd)
+}
+// Variant: V21
+Microaction {
+  uA_V21_CUSTOM0_I    (V21_CUSTOM0_I),
+  uA_V21_CUSTOM0_X    (V21_CUSTOM0_X),
+  uA_V21_CUSTOM0_O    (V21_CUSTOM0_O -> Xd),
+  uA_V21_CUSTOM5_I    (V21_CUSTOM5_I),
+  uA_V21_CUSTOM5_X    (V21_CUSTOM5_X),
+  uA_V21_CUSTOM5_O    (V21_CUSTOM5_O -> Xd)
+}
+// Variant: V22
+Microaction {
+  uA_V22_CUSTOM0_I    (V22_CUSTOM0_I),
+  uA_V22_CUSTOM0_X    (V22_CUSTOM0_X),
+  uA_V22_CUSTOM0_O    (V22_CUSTOM0_O -> Xd),
+  uA_V22_CUSTOM5_I    (V22_CUSTOM5_I),
+  uA_V22_CUSTOM5_X    (V22_CUSTOM5_X),
+  uA_V22_CUSTOM5_O    (V22_CUSTOM5_O -> Xd)
+}
+// Variant: V23
+Microaction {
+  uA_V23_CUSTOM0_I    (V23_CUSTOM0_I),
+  uA_V23_CUSTOM0_X    (V23_CUSTOM0_X),
+  uA_V23_CUSTOM0_O    (V23_CUSTOM0_O -> Xd),
+  uA_V23_CUSTOM5_I    (V23_CUSTOM5_I),
+  uA_V23_CUSTOM5_X    (V23_CUSTOM5_X),
+  uA_V23_CUSTOM5_O    (V23_CUSTOM5_O -> Xd)
+}
+// Variant: V24
+Microaction {
+  uA_V24_CUSTOM0_I    (V24_CUSTOM0_I),
+  uA_V24_CUSTOM0_X    (V24_CUSTOM0_X),
+  uA_V24_CUSTOM0_O    (V24_CUSTOM0_O -> Xd),
+  uA_V24_CUSTOM5_I    (V24_CUSTOM5_I),
+  uA_V24_CUSTOM5_X    (V24_CUSTOM5_X),
+  uA_V24_CUSTOM5_O    (V24_CUSTOM5_O -> Xd)
+}
+// Variant: V25
+Microaction {
+  uA_V25_CUSTOM0_I    (V25_CUSTOM0_I),
+  uA_V25_CUSTOM0_X    (V25_CUSTOM0_X),
+  uA_V25_CUSTOM0_O    (V25_CUSTOM0_O -> Xd),
+  uA_V25_CUSTOM5_I    (V25_CUSTOM5_I),
+  uA_V25_CUSTOM5_X    (V25_CUSTOM5_X),
+  uA_V25_CUSTOM5_O    (V25_CUSTOM5_O -> Xd)
+}
+// Variant: V26
+Microaction {
+  uA_V26_CUSTOM0_I    (V26_CUSTOM0_I),
+  uA_V26_CUSTOM0_X    (V26_CUSTOM0_X),
+  uA_V26_CUSTOM0_O    (V26_CUSTOM0_O -> Xd),
+  uA_V26_CUSTOM5_I    (V26_CUSTOM5_I),
+  uA_V26_CUSTOM5_X    (V26_CUSTOM5_X),
+  uA_V26_CUSTOM5_O    (V26_CUSTOM5_O -> Xd)
+}
+// -----------------------
+
+/************************************ Stages & Pipeline ************************************/
+
+Stage {
+  EX_substage_CUSTOM0_I (vuA_CUSTOM0_I),
+  EX_substage_CUSTOM0_X (vuA_CUSTOM0_X),
+  EX_substage_CUSTOM0_O (vuA_CUSTOM0_O),
+  EX_substage_CUSTOM5_I (vuA_CUSTOM5_I),
+  EX_substage_CUSTOM5_X (vuA_CUSTOM5_X),
+  EX_substage_CUSTOM5_O (vuA_CUSTOM5_O)
+}
+
+Pipeline {
+  EX_subpipe_CUSTOM0 (EX_substage_CUSTOM0_I -> EX_substage_CUSTOM0_X -> EX_substage_CUSTOM0_O),
+  EX_subpipe_CUSTOM5 (EX_substage_CUSTOM5_I -> EX_substage_CUSTOM5_X -> EX_substage_CUSTOM5_O)
+}
+
+Stage {
+  EX_substage_BASE (
+    uA_ALU_RegUpdate,
+    uA_ALU_Branch,
+    uA_CSR,
+    uA_LSU,
+    uA_MUL,
+    uA_MULH,
+    uA_DIV,
+    uA_DIVU
+  )
+}
+
+Pipeline {
+  EX_subpipe_BASE (EX_substage_BASE)
+}
+
+Stage {
+  IF_stage (uA_IFetch, uA_PCGen),
+  ID_stage (uA_Decode, uA_JumpDecode, uA_JumpDecodeReg, uA_OF_A, uA_OF_B),
+  EX_stage [capacity:2] (
+    //uA_ALU_RegUpdate,
+    //uA_ALU_Branch,
+    //uA_CSR,
+    //uA_LSU,
+    //uA_MUL,
+    //uA_MULH,
+    // = XISAAC EX stage =
+    EX_subpipe_CUSTOM0,
+    EX_subpipe_CUSTOM5,
+    // -------------------
+    //uA_DIV,
+    //uA_DIVU
+    EX_subpipe_BASE
+  ),
+  WB_stage (uA_Memory_R, uA_Memory_W)
+}
+
+Pipeline CV32E40PXISAAC_pipeline (IF_stage -> ID_stage -> EX_stage -> WB_stage)
+
+/************************************* External Models *************************************/
+TraceValue {rs1, rs2, rd, pc, brTarget, rs2_data}
+
+ConnectorModel regModel (
+  link : "models/common/StandardRegisterModel.h"
+  trace : {rs1, rs2, rd}
+  connectorIn : Xd
+  connectorOut : {Xa, Xb}
+)
+
+ConnectorModel staBranchPredModel (
+  link : "models/common/StaticBranchPredictModel.h"
+  trace : {pc, brTarget}
+  connectorIn : {Pc_np, Pc_p}
+  connectorOut : Pc
+)
+
+ConnectorModel perfectBranchPredModel (
+  link : "models/common/PerfectBranchPredictModel.h"
+  trace : {pc, brTarget}
+  connectorIn : {Pc_np, Pc_p}
+  connectorOut : Pc
+)
+
+ResourceModel divider (
+  link: "models/cv32e40p/DividerModel.h"
+  trace: rs2_data
+)
+
+ResourceModel divider_u (
+  link: "models/cv32e40p/DividerUnsignedModel.h"
+  trace: rs2_data
+)
+
+Model iCacheModel(
+  link : "models/cv32e40p/CustomICacheModel.h"
+  trace : {pc}
+)
+
+Model dCacheModel(
+  link : "models/cv32e40p/CustomDCacheModel.h"
+  trace : {addr}
+)
+
+/*********************************** Instruction Section ***********************************/
+InstrGroup {
+  Arith_Ra_Rb (add, sub, xor, or, and, slt, sltu, sll, srl, sra),
+  Arith_Ra (addi, xori, ori, andi, slti, sltiu, slli, srli, srai),
+  Arith_X (auipc, lui),
+  Mul_Ra_Rb (mul),
+  MulH_Ra_Rb (mulh, mulhu, mulhsu),
+  Div_Ra_Rb (div, rem),
+  DivU_Ra_Rb (divu, remu),
+  Csr_Ra (csrrw, csrrs, csrrc),
+  Csr_X (csrrwi, csrrsi, csrrci),
+  Store (sb, sh, sw),
+  Load (lw, lh, lhu, lb, lbu),
+  Branch_Ra_Rb (beq, bne, blt, bge, bltu, bgeu),
+  Default ([?])
+}
+
+// = XISAAC Instr Groups =
+InstrGroup {
+  XIsaac_CUSTOM0 (custom0),
+  XIsaac_CUSTOM5 (custom5)
+}
+// -----------------------
+
+MicroactionMapping {
+  [ALL] :        {uA_IFetch, uA_PCGen},
+  Arith_Ra_Rb :  {uA_Decode, uA_OF_A, uA_OF_B, uA_ALU_RegUpdate},
+  Arith_Ra :     {uA_Decode, uA_OF_A, uA_ALU_RegUpdate},
+  Arith_X :      {uA_Decode, uA_ALU_RegUpdate},
+  Mul_Ra_Rb :    {uA_Decode, uA_OF_A, uA_OF_B, uA_MUL},
+  MulH_Ra_Rb :   {uA_Decode, uA_OF_A, uA_OF_B, uA_MULH},
+  Div_Ra_Rb :    {uA_Decode, uA_OF_A, uA_OF_B, uA_DIV},
+  DivU_Ra_Rb :   {uA_Decode, uA_OF_A, uA_OF_B, uA_DIVU},
+  Csr_Ra :       {uA_Decode, uA_OF_A, uA_CSR},
+  Csr_X :        {uA_Decode, uA_CSR},
+  Store :        {uA_Decode, uA_OF_A, uA_OF_B, uA_LSU, uA_Memory_W},
+  Load :         {uA_Decode, uA_OF_A, uA_LSU, uA_Memory_R},
+  Branch_Ra_Rb : {uA_Decode, uA_OF_A, uA_OF_B, uA_ALU_Branch},
+  jal :          {uA_JumpDecode, uA_ALU_RegUpdate},
+  jalr :         {uA_JumpDecodeReg, uA_ALU_RegUpdate}
+}
+
+// = XISAAC Microaction Mapping =
+MicroactionMapping {
+  XIsaac_CUSTOM0 : {uA_Decode, uA_OF_A, uA_OF_B, vuA_CUSTOM0_I, vuA_CUSTOM0_X, vuA_CUSTOM0_O},
+  XIsaac_CUSTOM5 : {uA_Decode, uA_OF_A, uA_OF_B, vuA_CUSTOM5_I, vuA_CUSTOM5_X, vuA_CUSTOM5_O}
+}
+// ------------------------------
+
+
+TraceValueMapping {
+  [ALL] : {
+      pc = "$resolved{$pc}"
+  },
+  Arith_Ra_Rb : {
+    rs1 = "$bitfield{rs1}",
+    rs2 = "$bitfield{rs2}",
+    rd  = "$bitfield{rd}"
+  },
+  Arith_Ra : {
+    rs1 = "$bitfield{rs1}",
+    rd  = "$bitfield{rd}"
+  },
+  Arith_X : {
+    rd  = "$bitfield{rd}"
+  },
+  Mul_Ra_Rb : {
+    rs1 = "$bitfield{rs1}",
+    rs2 = "$bitfield{rs2}",
+    rd  = "$bitfield{rd}"
+  },
+  MulH_Ra_Rb : {
+    rs1 = "$bitfield{rs1}",
+    rs2 = "$bitfield{rs2}",
+    rd  = "$bitfield{rd}"
+  },
+  // = XISAAC Trace Value Mapping =
+  XIsaac_CUSTOM0 : {
+    rd = "$bitfield{rd}",
+    rd_data = "$reg{$bitfield{rd}}",
+
+    rs1 = "$bitfield{rs1}",
+    rs1_data = "$reg{$bitfield{rs1}}",
+
+    rs2 = "$bitfield{rs2}",
+    rs2_data = "$reg{$bitfield{rs2}}"
+  },
+  XIsaac_CUSTOM5 : {
+    rd = "$bitfield{rd}",
+    rd_data = "$reg{$bitfield{rd}}",
+
+    rs1 = "$bitfield{rs1}",
+    rs1_data = "$reg{$bitfield{rs1}}",
+
+    rs2 = "$bitfield{rs2}",
+    rs2_data = "$reg{$bitfield{rs2}}"
+  },
+  // ------------------------------
+  Div_Ra_Rb : {
+    rs1 = "$bitfield{rs1}",
+    rs2 = "$bitfield{rs2}",
+    rd  = "$bitfield{rd}",
+    rs2_data = "$reg{$bitfield{rs2}}"
+  },
+  DivU_Ra_Rb : {
+    rs1 = "$bitfield{rs1}",
+    rs2 = "$bitfield{rs2}",
+    rd  = "$bitfield{rd}",
+    rs2_data = "$reg{$bitfield{rs2}}"
+  },
+  Csr_Ra : {
+    rs1 = "$bitfield{rs1}",
+    rd  = "$bitfield{rd}"
+  },
+  Csr_X : {
+    rd  = "$bitfield{rd}"
+  },
+  Store : {
+    rs1 = "$bitfield{rs1}",
+    rs2 = "$bitfield{rs2}"
+  },
+  Load : {
+    rs1 = "$bitfield{rs1}",
+    rd  = "$bitfield{rd}"
+  },
+  Branch_Ra_Rb : {
+    rs1 = "$bitfield{rs1}",
+    rs2 = "$bitfield{rs2}",
+    brTarget = "$resolved{$pc + (((int16_t)($bitfield{imm} << 3)) >> 3)}"
+  },
+  jal : {
+    rd = "$bitfield{rd}",
+    brTarget = "$resolved{$pc + (((int32_t)($bitfield{imm} << 11)) >> 11)}"
+  },
+  jalr : {
+    rs1 = "$bitfield{rs1}",
+    rd  = "$bitfield{rd}",
+    brTarget = "($reg{$bitfield{rs1}} + $resolved{(((int16_t)($bitfield{imm} << 4)) >> 4)}) & -2U"
+  }
+}
+
+/**************************************** Variants *****************************************/
+
+// Variant: V0
+CorePerfModel CV32E40PXISAAC_aha_mont64_V0 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V0_CUSTOM0_I,
+    vCUSTOM0_X = V0_CUSTOM0_X,
+    vCUSTOM0_O = V0_CUSTOM0_O,
+    vCUSTOM5_I = V0_CUSTOM5_I,
+    vCUSTOM5_X = V0_CUSTOM5_X,
+    vCUSTOM5_O = V0_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V0_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V0_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V0_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V0_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V0_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V0_CUSTOM5_O
+  }
+)
+
+// Variant: V1
+CorePerfModel CV32E40PXISAAC_aha_mont64_V1 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V1_CUSTOM0_I,
+    vCUSTOM0_X = V1_CUSTOM0_X,
+    vCUSTOM0_O = V1_CUSTOM0_O,
+    vCUSTOM5_I = V1_CUSTOM5_I,
+    vCUSTOM5_X = V1_CUSTOM5_X,
+    vCUSTOM5_O = V1_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V1_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V1_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V1_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V1_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V1_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V1_CUSTOM5_O
+  }
+)
+
+// Variant: V2
+CorePerfModel CV32E40PXISAAC_aha_mont64_V2 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V2_CUSTOM0_I,
+    vCUSTOM0_X = V2_CUSTOM0_X,
+    vCUSTOM0_O = V2_CUSTOM0_O,
+    vCUSTOM5_I = V2_CUSTOM5_I,
+    vCUSTOM5_X = V2_CUSTOM5_X,
+    vCUSTOM5_O = V2_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V2_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V2_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V2_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V2_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V2_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V2_CUSTOM5_O
+  }
+)
+
+// Variant: V3
+CorePerfModel CV32E40PXISAAC_aha_mont64_V3 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V3_CUSTOM0_I,
+    vCUSTOM0_X = V3_CUSTOM0_X,
+    vCUSTOM0_O = V3_CUSTOM0_O,
+    vCUSTOM5_I = V3_CUSTOM5_I,
+    vCUSTOM5_X = V3_CUSTOM5_X,
+    vCUSTOM5_O = V3_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V3_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V3_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V3_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V3_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V3_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V3_CUSTOM5_O
+  }
+)
+
+// Variant: V4
+CorePerfModel CV32E40PXISAAC_aha_mont64_V4 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V4_CUSTOM0_I,
+    vCUSTOM0_X = V4_CUSTOM0_X,
+    vCUSTOM0_O = V4_CUSTOM0_O,
+    vCUSTOM5_I = V4_CUSTOM5_I,
+    vCUSTOM5_X = V4_CUSTOM5_X,
+    vCUSTOM5_O = V4_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V4_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V4_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V4_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V4_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V4_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V4_CUSTOM5_O
+  }
+)
+
+// Variant: V5
+CorePerfModel CV32E40PXISAAC_aha_mont64_V5 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V5_CUSTOM0_I,
+    vCUSTOM0_X = V5_CUSTOM0_X,
+    vCUSTOM0_O = V5_CUSTOM0_O,
+    vCUSTOM5_I = V5_CUSTOM5_I,
+    vCUSTOM5_X = V5_CUSTOM5_X,
+    vCUSTOM5_O = V5_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V5_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V5_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V5_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V5_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V5_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V5_CUSTOM5_O
+  }
+)
+
+// Variant: V6
+CorePerfModel CV32E40PXISAAC_aha_mont64_V6 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V6_CUSTOM0_I,
+    vCUSTOM0_X = V6_CUSTOM0_X,
+    vCUSTOM0_O = V6_CUSTOM0_O,
+    vCUSTOM5_I = V6_CUSTOM5_I,
+    vCUSTOM5_X = V6_CUSTOM5_X,
+    vCUSTOM5_O = V6_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V6_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V6_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V6_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V6_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V6_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V6_CUSTOM5_O
+  }
+)
+
+// Variant: V7
+CorePerfModel CV32E40PXISAAC_aha_mont64_V7 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V7_CUSTOM0_I,
+    vCUSTOM0_X = V7_CUSTOM0_X,
+    vCUSTOM0_O = V7_CUSTOM0_O,
+    vCUSTOM5_I = V7_CUSTOM5_I,
+    vCUSTOM5_X = V7_CUSTOM5_X,
+    vCUSTOM5_O = V7_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V7_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V7_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V7_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V7_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V7_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V7_CUSTOM5_O
+  }
+)
+
+// Variant: V8
+CorePerfModel CV32E40PXISAAC_aha_mont64_V8 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V8_CUSTOM0_I,
+    vCUSTOM0_X = V8_CUSTOM0_X,
+    vCUSTOM0_O = V8_CUSTOM0_O,
+    vCUSTOM5_I = V8_CUSTOM5_I,
+    vCUSTOM5_X = V8_CUSTOM5_X,
+    vCUSTOM5_O = V8_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V8_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V8_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V8_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V8_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V8_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V8_CUSTOM5_O
+  }
+)
+
+// Variant: V9
+CorePerfModel CV32E40PXISAAC_aha_mont64_V9 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V9_CUSTOM0_I,
+    vCUSTOM0_X = V9_CUSTOM0_X,
+    vCUSTOM0_O = V9_CUSTOM0_O,
+    vCUSTOM5_I = V9_CUSTOM5_I,
+    vCUSTOM5_X = V9_CUSTOM5_X,
+    vCUSTOM5_O = V9_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V9_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V9_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V9_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V9_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V9_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V9_CUSTOM5_O
+  }
+)
+
+// Variant: V10
+CorePerfModel CV32E40PXISAAC_aha_mont64_V10 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V10_CUSTOM0_I,
+    vCUSTOM0_X = V10_CUSTOM0_X,
+    vCUSTOM0_O = V10_CUSTOM0_O,
+    vCUSTOM5_I = V10_CUSTOM5_I,
+    vCUSTOM5_X = V10_CUSTOM5_X,
+    vCUSTOM5_O = V10_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V10_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V10_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V10_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V10_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V10_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V10_CUSTOM5_O
+  }
+)
+
+// Variant: V11
+CorePerfModel CV32E40PXISAAC_aha_mont64_V11 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V11_CUSTOM0_I,
+    vCUSTOM0_X = V11_CUSTOM0_X,
+    vCUSTOM0_O = V11_CUSTOM0_O,
+    vCUSTOM5_I = V11_CUSTOM5_I,
+    vCUSTOM5_X = V11_CUSTOM5_X,
+    vCUSTOM5_O = V11_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V11_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V11_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V11_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V11_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V11_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V11_CUSTOM5_O
+  }
+)
+
+// Variant: V12
+CorePerfModel CV32E40PXISAAC_aha_mont64_V12 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V12_CUSTOM0_I,
+    vCUSTOM0_X = V12_CUSTOM0_X,
+    vCUSTOM0_O = V12_CUSTOM0_O,
+    vCUSTOM5_I = V12_CUSTOM5_I,
+    vCUSTOM5_X = V12_CUSTOM5_X,
+    vCUSTOM5_O = V12_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V12_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V12_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V12_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V12_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V12_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V12_CUSTOM5_O
+  }
+)
+
+// Variant: V13
+CorePerfModel CV32E40PXISAAC_aha_mont64_V13 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V13_CUSTOM0_I,
+    vCUSTOM0_X = V13_CUSTOM0_X,
+    vCUSTOM0_O = V13_CUSTOM0_O,
+    vCUSTOM5_I = V13_CUSTOM5_I,
+    vCUSTOM5_X = V13_CUSTOM5_X,
+    vCUSTOM5_O = V13_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V13_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V13_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V13_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V13_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V13_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V13_CUSTOM5_O
+  }
+)
+
+// Variant: V14
+CorePerfModel CV32E40PXISAAC_aha_mont64_V14 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V14_CUSTOM0_I,
+    vCUSTOM0_X = V14_CUSTOM0_X,
+    vCUSTOM0_O = V14_CUSTOM0_O,
+    vCUSTOM5_I = V14_CUSTOM5_I,
+    vCUSTOM5_X = V14_CUSTOM5_X,
+    vCUSTOM5_O = V14_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V14_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V14_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V14_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V14_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V14_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V14_CUSTOM5_O
+  }
+)
+
+// Variant: V15
+CorePerfModel CV32E40PXISAAC_aha_mont64_V15 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V15_CUSTOM0_I,
+    vCUSTOM0_X = V15_CUSTOM0_X,
+    vCUSTOM0_O = V15_CUSTOM0_O,
+    vCUSTOM5_I = V15_CUSTOM5_I,
+    vCUSTOM5_X = V15_CUSTOM5_X,
+    vCUSTOM5_O = V15_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V15_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V15_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V15_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V15_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V15_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V15_CUSTOM5_O
+  }
+)
+
+// Variant: V16
+CorePerfModel CV32E40PXISAAC_aha_mont64_V16 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V16_CUSTOM0_I,
+    vCUSTOM0_X = V16_CUSTOM0_X,
+    vCUSTOM0_O = V16_CUSTOM0_O,
+    vCUSTOM5_I = V16_CUSTOM5_I,
+    vCUSTOM5_X = V16_CUSTOM5_X,
+    vCUSTOM5_O = V16_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V16_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V16_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V16_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V16_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V16_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V16_CUSTOM5_O
+  }
+)
+
+// Variant: V17
+CorePerfModel CV32E40PXISAAC_aha_mont64_V17 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V17_CUSTOM0_I,
+    vCUSTOM0_X = V17_CUSTOM0_X,
+    vCUSTOM0_O = V17_CUSTOM0_O,
+    vCUSTOM5_I = V17_CUSTOM5_I,
+    vCUSTOM5_X = V17_CUSTOM5_X,
+    vCUSTOM5_O = V17_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V17_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V17_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V17_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V17_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V17_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V17_CUSTOM5_O
+  }
+)
+
+// Variant: V18
+CorePerfModel CV32E40PXISAAC_aha_mont64_V18 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V18_CUSTOM0_I,
+    vCUSTOM0_X = V18_CUSTOM0_X,
+    vCUSTOM0_O = V18_CUSTOM0_O,
+    vCUSTOM5_I = V18_CUSTOM5_I,
+    vCUSTOM5_X = V18_CUSTOM5_X,
+    vCUSTOM5_O = V18_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V18_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V18_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V18_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V18_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V18_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V18_CUSTOM5_O
+  }
+)
+
+// Variant: V19
+CorePerfModel CV32E40PXISAAC_aha_mont64_V19 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V19_CUSTOM0_I,
+    vCUSTOM0_X = V19_CUSTOM0_X,
+    vCUSTOM0_O = V19_CUSTOM0_O,
+    vCUSTOM5_I = V19_CUSTOM5_I,
+    vCUSTOM5_X = V19_CUSTOM5_X,
+    vCUSTOM5_O = V19_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V19_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V19_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V19_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V19_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V19_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V19_CUSTOM5_O
+  }
+)
+
+// Variant: V20
+CorePerfModel CV32E40PXISAAC_aha_mont64_V20 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V20_CUSTOM0_I,
+    vCUSTOM0_X = V20_CUSTOM0_X,
+    vCUSTOM0_O = V20_CUSTOM0_O,
+    vCUSTOM5_I = V20_CUSTOM5_I,
+    vCUSTOM5_X = V20_CUSTOM5_X,
+    vCUSTOM5_O = V20_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V20_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V20_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V20_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V20_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V20_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V20_CUSTOM5_O
+  }
+)
+
+// Variant: V21
+CorePerfModel CV32E40PXISAAC_aha_mont64_V21 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V21_CUSTOM0_I,
+    vCUSTOM0_X = V21_CUSTOM0_X,
+    vCUSTOM0_O = V21_CUSTOM0_O,
+    vCUSTOM5_I = V21_CUSTOM5_I,
+    vCUSTOM5_X = V21_CUSTOM5_X,
+    vCUSTOM5_O = V21_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V21_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V21_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V21_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V21_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V21_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V21_CUSTOM5_O
+  }
+)
+
+// Variant: V22
+CorePerfModel CV32E40PXISAAC_aha_mont64_V22 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V22_CUSTOM0_I,
+    vCUSTOM0_X = V22_CUSTOM0_X,
+    vCUSTOM0_O = V22_CUSTOM0_O,
+    vCUSTOM5_I = V22_CUSTOM5_I,
+    vCUSTOM5_X = V22_CUSTOM5_X,
+    vCUSTOM5_O = V22_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V22_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V22_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V22_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V22_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V22_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V22_CUSTOM5_O
+  }
+)
+
+// Variant: V23
+CorePerfModel CV32E40PXISAAC_aha_mont64_V23 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V23_CUSTOM0_I,
+    vCUSTOM0_X = V23_CUSTOM0_X,
+    vCUSTOM0_O = V23_CUSTOM0_O,
+    vCUSTOM5_I = V23_CUSTOM5_I,
+    vCUSTOM5_X = V23_CUSTOM5_X,
+    vCUSTOM5_O = V23_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V23_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V23_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V23_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V23_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V23_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V23_CUSTOM5_O
+  }
+)
+
+// Variant: V24
+CorePerfModel CV32E40PXISAAC_aha_mont64_V24 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V24_CUSTOM0_I,
+    vCUSTOM0_X = V24_CUSTOM0_X,
+    vCUSTOM0_O = V24_CUSTOM0_O,
+    vCUSTOM5_I = V24_CUSTOM5_I,
+    vCUSTOM5_X = V24_CUSTOM5_X,
+    vCUSTOM5_O = V24_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V24_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V24_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V24_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V24_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V24_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V24_CUSTOM5_O
+  }
+)
+
+// Variant: V25
+CorePerfModel CV32E40PXISAAC_aha_mont64_V25 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V25_CUSTOM0_I,
+    vCUSTOM0_X = V25_CUSTOM0_X,
+    vCUSTOM0_O = V25_CUSTOM0_O,
+    vCUSTOM5_I = V25_CUSTOM5_I,
+    vCUSTOM5_X = V25_CUSTOM5_X,
+    vCUSTOM5_O = V25_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V25_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V25_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V25_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V25_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V25_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V25_CUSTOM5_O
+  }
+)
+
+// Variant: V26
+CorePerfModel CV32E40PXISAAC_aha_mont64_V26 (
+  core : "XIsaacCore"
+  use Pipeline : CV32E40PXISAAC_pipeline
+  use ConnectorModel : {regModel, staBranchPredModel}
+  assign Resource : {
+    vCUSTOM0_I = V26_CUSTOM0_I,
+    vCUSTOM0_X = V26_CUSTOM0_X,
+    vCUSTOM0_O = V26_CUSTOM0_O,
+    vCUSTOM5_I = V26_CUSTOM5_I,
+    vCUSTOM5_X = V26_CUSTOM5_X,
+    vCUSTOM5_O = V26_CUSTOM5_O
+  }
+  assign Microaction : {
+    vuA_CUSTOM0_I = uA_V26_CUSTOM0_I,
+    vuA_CUSTOM0_X = uA_V26_CUSTOM0_X,
+    vuA_CUSTOM0_O = uA_V26_CUSTOM0_O,
+    vuA_CUSTOM5_I = uA_V26_CUSTOM5_I,
+    vuA_CUSTOM5_X = uA_V26_CUSTOM5_X,
+    vuA_CUSTOM5_O = uA_V26_CUSTOM5_O
+  }
+)
+
+// --------------------

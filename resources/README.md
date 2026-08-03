@@ -2,6 +2,14 @@
 
 Here, other resources are saved that are not necessary for this code-project but were used to compile or extract results.
 
+### `coreperfdsl-generator/`
+
+Resources for generating .corePerfDSL files based on the XISAAC-Variant of a CV32E40P-core.
+
+### `performance-sim`
+
+Custom resources using in performance simulations.
+
 ### `normalize_choices.py`
 
 Extracts basic blocks for the CPI prediction from traces generated in the GenIE/XISAAC workflow.
@@ -14,7 +22,7 @@ python3 normalize_choices.py <path-to-experiment> [-h] [-x] [-p] [-c] [-o OUT_DI
 
 - `-h`: Help
 - `-p`: Prints the results (experiment.json)
-- `-c`: Copy CorePerfDSL file if it exists.
+- `-c`: Copy .corePerfDSL file if it exists.
 - `-x`: Extracts basic blocks from `sess_new_filtered_selected` instead of `sess` (i.e. basic blocks with custom instructions)
 - `-o`: Output directory. Generates the following directory structure:
     - `<bench>/<timestamp>/...`        for basic blocks without custom instructions
@@ -22,8 +30,11 @@ python3 normalize_choices.py <path-to-experiment> [-h] [-x] [-p] [-c] [-o OUT_DI
 
 **Example Usage:**
 
+> **Note:** requires venv of xisaac-workspace to run
+
 ```bash
-python3 normalize_choices.py out/embench_iot/crc32/20260423T075325/ -x -p -c -o=exports/
+EXPERIMENT=out/embench_iot/crc32/20260423T075325/
+python3 normalize_choices.py $EXPERIMENT -x -p -c -o=exports/
 ```
 
 The CPI-analysis can then be executed using:
